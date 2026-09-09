@@ -51,6 +51,7 @@ export const FeedbackModal = ({
           placeholder={t`Tell us what happened`}
           onChange={(e) => setComment(e.currentTarget.value)}
           minRows={3}
+          maxLength={100_000}
         />
 
         <TextInput
@@ -59,6 +60,8 @@ export const FeedbackModal = ({
           name="email"
           placeholder={t`Leave your email if you want us to follow up with you`}
           onChange={(e) => setEmail(e.currentTarget.value)}
+          /* Maximum usable: 254 octets, cf. https://www.rfc-editor.org/info/rfc3696/#section-3 errata */
+          maxLength={320}
         />
 
         <Group justify="flex-end">

@@ -87,7 +87,6 @@ application-logo-url
 application-name
 available-fonts
 available-locales
-available-timezones
 breakout-bins-num
 csv-field-separator
 custom-formatting

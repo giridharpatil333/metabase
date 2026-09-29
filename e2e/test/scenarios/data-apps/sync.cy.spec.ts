@@ -103,13 +103,13 @@ describe("scenarios > data apps > repo sync", () => {
       });
     }
 
-    // And what a user opening the broken app sees: its metadata loads (the app
-    // exists), the host frames it, and the bundle 404 surfaces from inside the
-    // iframe as the "isn't ready yet" screen — driven by the real pull, no mocks.
-    // (The not-found screen for a missing app is covered in viewing.cy.spec.ts.)
+    // And what a user opening the broken app sees: it has no collection yet, so
+    // the host shows the "isn't published yet" screen — driven by the real pull,
+    // no mocks. (The not-found screen for a missing app is covered in
+    // viewing.cy.spec.ts.)
     cy.visit("/apps/broken-bundle");
     H.main()
-      .findByText(/isn.t ready yet/i, { timeout: 30000 })
+      .findByText(/isn.t published yet/i, { timeout: 30000 })
       .should("be.visible");
   });
 

@@ -76,6 +76,9 @@
                    (tru "Action {0} is an HTTP action, which data apps cannot run." action-id))
     (api/check-400 (and (= :model (:type model)) (not (:archived model)))
                    (tru "Action {0} does not belong to a model." action-id))
+    (api/check-400 (not-any? (comp :card_id :values_source_config) (:parameters action))
+                   (tru "Action {0} takes parameter values from a saved question and cannot be copied into a data app."
+                        action-id))
     (api/check-400 (empty? (source-card-ids model))
                    (tru "Model {0} depends on saved questions and cannot be copied into a data app. Use a model without saved question sources or joins."
                         (:name model)))

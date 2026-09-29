@@ -26,7 +26,7 @@ const RESOURCES_DIR = () => `${APP_ROOT()}/resources`;
 const ENTITY_ID_PATTERN = /copiedActionEntityId: "([A-Za-z0-9_-]{21})"/;
 
 /** The manifest as source control holds it. */
-const AUTHORED_MANIFEST = `name: ${APP_DISPLAY_NAME}\npath: ./dist/index.js\n`;
+const AUTHORED_MANIFEST = `name: ${APP_DISPLAY_NAME}\nversion: 1\npath: ./dist/index.js\n`;
 
 /**
  * The declaration as source control holds it, with no generated ID yet. The

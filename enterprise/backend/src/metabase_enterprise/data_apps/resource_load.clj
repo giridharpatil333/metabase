@@ -223,11 +223,22 @@
       (import-table-fk [_ path] (when path (table-id path)))
       (import-field-fk [_ path] (when path (field-id path))))))
 
+(def ^:private instance-field-defaults
+  "Fields someone can set in Metabase that a rendered file may leave out. Serdes omits nil fields and an import only
+  writes the fields a file carries, so these defaults are loaded under the file's own values to put back an edit."
+  {"Card"       (merge (zipmap [:collection_position :dashboard_id :description :document_id
+                                :embedding_params :embedding_type :made_public_by_id :public_uuid]
+                               (repeat nil))
+                       {:archived_directly false})
+   "Action"     (zipmap [:description :made_public_by_id :public_uuid] (repeat nil))
+   "Collection" (zipmap [:archive_operation_id :archived_directly :authority_level :description] (repeat nil))})
+
 (defn- load-entities! [entities]
   (let [creator (data-apps.db/internal-user-email)
-        entities (for [entity entities]
-                   (cond-> entity
-                     (#{"Card" "Action"} (:model (entity-leaf entity))) (assoc :creator_id creator)))]
+        entities (for [entity entities
+                       :let [model (:model (entity-leaf entity))]]
+                   (cond-> (merge (instance-field-defaults model) entity)
+                     (#{"Card" "Action"} model) (assoc :creator_id creator)))]
     (try
       (serdes/with-cache
         (binding [resolve/*import-resolver* (strict-import-resolver resolve/*import-resolver*)]

@@ -104,7 +104,9 @@ failures are recorded per app rather than thrown:
 - **Bundle missing or over the size cap, or resource files invalid** — the row's metadata is still
   upserted with `sync_error` set, and the previously cached bundle and loaded resources are kept.
 - **Resources that fail to load** — the app's transaction rolls back to its savepoint, leaving its
-  previous bundle and resources in place, and `sync_error` records why.
+  previous bundle and resources in place, and `sync_error` records why. Loading can fail on the
+  instance's state, e.g. a table not synced yet, so a pull of the commit already imported retries
+  the apps whose last sync failed instead of skipping them.
 - **Anything thrown at all** — `sync-from-snapshot!` catches and logs it, returning nil, so a
   data-app failure can't break the surrounding remote-sync import.
 

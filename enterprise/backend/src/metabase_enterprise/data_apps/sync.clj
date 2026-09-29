@@ -267,6 +267,12 @@
     (merge {:synced (count good), :changed changed, :sha sha, :config-errors errors}
            pruning-result)))
 
+(defn failed-apps?
+  "Whether any app's last sync failed. Loading an app's resources depends on the instance, e.g. on its tables being
+  synced, so a pull of an unchanged commit retries such an app instead of skipping it."
+  []
+  (data-apps.db/failed-data-app-exists?))
+
 (defn sync-from-snapshot!
   "Entry point for the remote-sync import pipeline. Materializes data apps from
    the just-imported `snapshot` (see [[import-from-snapshot!]] for its shape).

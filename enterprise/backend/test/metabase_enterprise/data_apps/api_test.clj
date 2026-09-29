@@ -327,6 +327,30 @@
                (render-query :crowberto 400 {:stages [{:source       {:type "table" :id (mt/id :venues)}
                                                        :aggregations [{:type "metric" :id metric-id}]}]})))))))
 
+(deftest render-rejects-actions-whose-parameter-values-come-from-a-card-test
+  (mt/with-premium-features #{:data-apps}
+    (let [metadata-provider (mt/metadata-provider)
+          venues-query      (lib/query metadata-provider (lib.metadata/table metadata-provider (mt/id :venues)))]
+      (mt/with-temp [:model/Card {model-id :id} {:type :model :database_id (mt/id) :dataset_query venues-query}
+                     :model/Card {values-card-id :id} {:database_id (mt/id) :dataset_query venues-query}]
+        (let [action-id (actions/insert!
+                         {:name          "Rename venue"
+                          :type          :query
+                          :model_id      model-id
+                          :database_id   (mt/id)
+                          :dataset_query (lib/native-query metadata-provider "UPDATE venues SET name = {{name}}")
+                          :parameters    [{:id                   "name"
+                                           :slug                 "name"
+                                           :type                 :string/=
+                                           :values_source_type   :card
+                                           :values_source_config {:card_id values-card-id}}]})]
+          (try
+            (is (= (format "Action %d takes parameter values from a saved question and cannot be copied into a data app."
+                           action-id)
+                   (mt/user-http-request :crowberto :post 400 "apps/resources/render" (render-request [] [action-id]))))
+            (finally
+              (t2/delete! :model/Action :id action-id))))))))
+
 (deftest render-rejects-query-actions-that-read-a-saved-question-test
   (mt/with-premium-features #{:data-apps}
     (let [metadata-provider (mt/metadata-provider)

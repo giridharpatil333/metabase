@@ -124,3 +124,27 @@
                   "the next pull redoes the import rather than skipping v1")
               (is (= "v1" (remote-sync.task/last-version)))
               (is (= "v1" (t2/select-one-fn :last_synced_sha :model/DataApp :name "sales"))))))))))
+
+(deftest unchanged-pull-retries-failed-apps-test
+  (testing "a pull of the commit already imported retries an app whose last sync failed, e.g. on a table that
+            wasn't synced yet, since nothing else would"
+    (search.tu/with-index-disabled
+      (mt/with-premium-features #{:data-apps}
+        (mt/with-temporary-setting-values [remote-sync-type :read-write remote-sync-transforms false]
+          (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup]
+            (let [src (rs.test/versioned-source :trees {"v0" (app-tree! "sales" "BUNDLE")} :current "v0")]
+              (is (= :success (:status (import-at! src "v0" :force? true))))
+              (t2/update! :model/DataApp :name "sales" {:sync_error "Table [\"db\" \"PUBLIC\" \"T\"] does not exist on this instance."})
+              (is (= :success (:status (import-at! src "v0"))))
+              (is (nil? (t2/select-one-fn :sync_error :model/DataApp :name "sales"))))))))))
+
+(deftest unchanged-pull-skips-data-apps-when-none-failed-test
+  (testing "a pull of the commit already imported leaves healthy data apps alone"
+    (search.tu/with-index-disabled
+      (mt/with-premium-features #{:data-apps}
+        (mt/with-temporary-setting-values [remote-sync-type :read-write remote-sync-transforms false]
+          (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup]
+            (let [src (rs.test/versioned-source :trees {"v0" (app-tree! "sales" "BUNDLE")} :current "v0")]
+              (is (= :success (:status (import-at! src "v0" :force? true))))
+              (mt/with-dynamic-fn-redefs [data-apps.sync/sync-from-snapshot! (fn [_] (throw (ex-info "should not run" {})))]
+                (is (=? {:status :success :outcome {:kind "pull-skipped"}} (import-at! src "v0")))))))))))

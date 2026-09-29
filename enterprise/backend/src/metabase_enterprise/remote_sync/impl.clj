@@ -315,7 +315,8 @@
    the repo (outside the serdes paths), so they ride this import rather than having their own sync. Runs inside
    the import's commit transaction, before the version is written: a task's `version` is the sync base (see
    [[remote-sync.db/last-synced-task]]) and gates every later pull, so a version that landed without its data
-   apps would never be re-materialized. Adapts the snapshot to plain reader fns;
+   apps would never be re-materialized. A pull of the version already imported also runs it, outside any import
+   transaction, when an app's last sync failed. Adapts the snapshot to plain reader fns;
    `data-apps.sync/sync-from-snapshot!` never throws."
   [^SourceSnapshot snapshot]
   ;; `read-file` returns file text (a string) or nil; data-apps.sync converts to
@@ -680,6 +681,8 @@
               (= last-imported-version snapshot-version)
               (do
                 (log/infof "Skipping import: snapshot version %s matches last imported version" snapshot-version)
+                (when (data-apps.sync/failed-apps?)
+                  (vreset! da-result (materialize-data-apps! snapshot)))
                 {:status :success
                  :version snapshot-version
                  :outcome {:kind "pull-skipped"}})

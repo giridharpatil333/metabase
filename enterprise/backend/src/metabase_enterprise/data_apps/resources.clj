@@ -44,6 +44,7 @@
   (let [card-ids   (data-apps.db/collection-card-ids collection-id #{})
         action-ids (data-apps.db/collection-action-ids collection-id #{})]
     (data-apps.db/delete-resource-collection! collection-id)
+    (search/delete! :model/Collection [(str collection-id)])
     (when (seq action-ids)
       (search/delete! :model/Action (map str action-ids)))
     (when (seq card-ids)

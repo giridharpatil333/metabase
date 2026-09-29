@@ -13,6 +13,7 @@
    [metabase.config.core :as config]
    [metabase.lib.core :as lib]
    [metabase.lib.metadata :as lib.metadata]
+   [metabase.search.core :as search]
    [metabase.test :as mt]
    [metabase.util.yaml :as yaml]
    [toucan2.core :as t2]))
@@ -147,6 +148,18 @@
             (is (nil? (sync-error)))
             (is (=? {:name "VenuesList" :display :table} (t2/select-one :model/Card card-id)))
             (is (= "Data App" (t2/select-one-fn :name :model/Collection collection-id))))
+          (testing "fields the files leave empty are put back, including sharing a card publicly"
+            (t2/update! :model/Card card-id {:public_uuid         (str (random-uuid))
+                                             :made_public_by_id   (mt/user->id :crowberto)
+                                             :description         "Edited"
+                                             :collection_position 1})
+            (t2/update! :model/Collection collection-id {:description "Edited" :authority_level "official"})
+            (import! resources)
+            (is (nil? (sync-error)))
+            (is (=? {:public_uuid nil :made_public_by_id nil :description nil :collection_position nil}
+                    (t2/select-one :model/Card card-id)))
+            (is (=? {:description nil :authority_level nil}
+                    (t2/select-one :model/Collection collection-id))))
           (testing "a card trashed in Metabase comes back"
             (t2/update! :model/Card card-id {:archived true})
             (import! resources)
@@ -158,7 +171,8 @@
             (is (true? (t2/select-one-fn :archived :model/Card card-id)))
             (import! resources)
             (is (nil? (sync-error)))
-            (is (false? (t2/select-one-fn :archived :model/Collection collection-id)))
+            (is (=? {:archived false :archived_directly (complement true?) :archive_operation_id nil}
+                    (t2/select-one :model/Collection collection-id)))
             (is (false? (t2/select-one-fn :archived :model/Card card-id))))
           (testing "a card moved out of the collection is no longer the app's, so the import refuses it"
             (mt/with-temp [:model/Collection {elsewhere-id :id} {}]
@@ -169,6 +183,21 @@
               (t2/update! :model/Card card-id {:collection_id collection-id})
               (import! resources)
               (is (nil? (sync-error))))))))))
+
+(deftest import-puts-back-a-copied-action-made-public-test
+  (mt/with-premium-features #{:data-apps}
+    (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card :model/Action]
+      (do-with-sources!
+       (fn [{:keys [metric-id implicit-id]}]
+         (let [resources (data-apps.tu/resource-files (render metric-id [implicit-id]))
+               copy-id   (copy-eid "action" implicit-id)]
+           (import! resources)
+           (t2/update! :model/Action :entity_id copy-id {:public_uuid       (str (random-uuid))
+                                                         :made_public_by_id (mt/user->id :crowberto)})
+           (import! resources)
+           (is (nil? (sync-error)))
+           (is (=? {:public_uuid nil :made_public_by_id nil}
+                   (t2/select-one :model/Action :entity_id copy-id)))))))))
 
 (deftest import-deletes-resources-whose-files-are-gone-test
   (mt/with-premium-features #{:data-apps}
@@ -209,12 +238,16 @@
                            (data-apps.tu/render eid [{:entity_id question-eid :name "VenuesList" :query (venues-query)}] [])))
             other-eid   (data-apps.tu/collection-entity-id "shop2")]
         (import! (render-into collection-eid))
-        (let [previous-id (app-collection-id)
-              card-id     (:id (card-by-eid question-eid))]
-          (import! (render-into other-eid) :collection other-eid)
+        (let [previous-id    (app-collection-id)
+              card-id        (:id (card-by-eid question-eid))
+              search-deletes (atom [])]
+          (mt/with-dynamic-fn-redefs [search/delete! (fn [model ids] (swap! search-deletes conj [model ids]))]
+            (import! (render-into other-eid) :collection other-eid))
           (is (nil? (sync-error)))
           (is (not= previous-id (app-collection-id)))
           (is (not (t2/exists? :model/Collection previous-id)))
+          (is (some #{[:model/Collection [(str previous-id)]]} @search-deletes)
+              "the previous collection leaves search with it")
           (is (= (app-collection-id) (t2/select-one-fn :collection_id :model/Card card-id))
               "the card moves to the new collection instead of being recreated"))))))
 
@@ -272,10 +305,11 @@
 (deftest import-never-creates-missing-tables-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
-      (let [table-count (t2/count :model/Table)
-            resources   (edit-question (rendered-question)
+      (let [resources   (edit-question (rendered-question)
                                        #(assoc-in % [:dataset_query :stages 0 :source-table]
-                                                  [(:name (mt/db)) "PUBLIC" "NO_SUCH_TABLE"]))]
+                                                  [(:name (mt/db)) "PUBLIC" "NO_SUCH_TABLE"]))
+            ;; After rendering, which loads the test database's tables on first use.
+            table-count (t2/count :model/Table)]
         (import! resources)
         (is (str/includes? (str (sync-error)) "NO_SUCH_TABLE"))
         (is (= table-count (t2/count :model/Table)))

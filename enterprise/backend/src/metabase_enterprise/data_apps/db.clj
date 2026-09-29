@@ -102,6 +102,11 @@
   [slugs :- [:set :string]]
   (t2/delete! :model/DataApp :name [:not-in slugs]))
 
+(defn failed-data-app-exists?
+  "Whether any DataApp's last sync failed."
+  []
+  (t2/exists? :model/DataApp :sync_error [:not= nil]))
+
 (mu/defn delete-all-data-apps!
   "Delete every DataApp, returning the number deleted."
   []

@@ -306,6 +306,23 @@
   (let [path (some #(when (str/starts-with? % path-prefix) %) (sort (keys resources)))]
     (update resources path #(yaml/generate-string (f (yaml/parse-string %))))))
 
+(deftest import-refuses-an-action-that-takes-over-another-action-test
+  (testing "an action file reusing the entity ID of a user's action elsewhere can't move that action onto the app's model"
+    (mt/with-premium-features #{:data-apps}
+      (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card :model/Action]
+        (do-with-sources!
+         (fn [{:keys [metric-id model-id implicit-id query-action-id]}]
+           (let [foreign-eid (t2/select-one-fn :entity_id :model/Action query-action-id)
+                 resources   (edit-file (resources-for metric-id [implicit-id]) "actions/"
+                                        #(-> %
+                                             (assoc :entity_id foreign-eid)
+                                             (assoc-in [:serdes/meta 0 :id] foreign-eid)))]
+             (import! resources)
+             (is (str/includes? (str (sync-error)) (str "Action " foreign-eid " already exists outside")))
+             (is (nil? (app-collection-id)) "nothing is loaded")
+             (is (= model-id (t2/select-one-fn :model_id :model/Action query-action-id))
+                 "the user's action stays on its own model"))))))))
+
 (deftest import-refuses-actions-that-reach-outside-the-app-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card :model/Action]

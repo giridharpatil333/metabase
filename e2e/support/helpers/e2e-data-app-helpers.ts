@@ -390,27 +390,6 @@ export function publishDataApp(
   });
 }
 
-/** The test repo is not an npm project, so `defineQuery` needs a stub to resolve. */
-export function declareSyncedDataAppQuery(slug: string, tableId: number) {
-  const appRoot = `${LOCAL_GIT_PATH}/data_apps/${slug}`;
-  const packageRoot = `${appRoot}/node_modules/@metabase/embedding-sdk-react`;
-
-  return cy.task("writeDataAppFiles", {
-    files: {
-      [`${packageRoot}/package.json`]: JSON.stringify({
-        name: "@metabase/embedding-sdk-react",
-        exports: { "./data-app": "./data-app.js" },
-      }),
-      [`${packageRoot}/data-app.js`]: "exports.defineQuery = (q) => q;",
-      [`${appRoot}/queries/orders.query.ts`]: [
-        'import { defineQuery } from "@metabase/embedding-sdk-react/data-app";',
-        `export const Orders = defineQuery({ source: { type: "table", id: ${tableId} } });`,
-        "",
-      ].join("\n"),
-    },
-  });
-}
-
 export function createDataAppApiKey() {
   return cy
     .request<{ unmasked_key: string }>("POST", "/api/api-key", {

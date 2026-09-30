@@ -5,7 +5,8 @@ import { discoverActions, discoverQueries } from "./discover";
 
 /**
  * The app's evaluated `defineQuery` and `defineAction` definitions as JSON, or
- * only those in `file`: what the app's `resources/` have to hold.
+ * only those in `file` (relative to the app root, as files are printed): what
+ * the app's `resources/` have to hold.
  */
 export async function printDefinitions(appDirectory: string, file?: string) {
   const appRoot = path.resolve(appDirectory);
@@ -13,8 +14,9 @@ export async function printDefinitions(appDirectory: string, file?: string) {
     discoverQueries(appRoot),
     discoverActions(appRoot),
   ]);
-  const inFile = ({ filePath }: { filePath: string }) =>
-    file === undefined || filePath === path.resolve(file);
+  const filePath = file === undefined ? undefined : path.resolve(appRoot, file);
+  const inFile = (definition: { filePath: string }) =>
+    filePath === undefined || definition.filePath === filePath;
 
   const printed = {
     queries: queries.filter(inFile).map((query) => {
@@ -37,12 +39,12 @@ export async function printDefinitions(appDirectory: string, file?: string) {
   };
 
   if (
-    file !== undefined &&
+    filePath !== undefined &&
     printed.queries.length === 0 &&
     printed.actions.length === 0
   ) {
     throw new Error(
-      `${path.relative(appRoot, path.resolve(file))} has no defineQuery or defineAction definitions.`,
+      `${path.relative(appRoot, filePath)} has no defineQuery or defineAction definitions.`,
     );
   }
 

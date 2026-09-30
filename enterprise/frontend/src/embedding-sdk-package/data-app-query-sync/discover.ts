@@ -51,7 +51,7 @@ async function evaluateModule(filePath: string) {
   return runtimeModule.exports;
 }
 
-function generatedEntityId(value: unknown, location: string, idKey: string) {
+function definedEntityId(value: unknown, location: string, idKey: string) {
   if (value === undefined) {
     return undefined;
   }
@@ -155,7 +155,7 @@ export async function discoverQueries(
     exportName,
     filePath,
     query: value,
-    savedQuestionEntityId: generatedEntityId(
+    savedQuestionEntityId: definedEntityId(
       value[QUERY_DEFINITIONS.idKey],
       getRelativeDefinitionLocation(appRoot, { filePath, exportName }),
       QUERY_DEFINITIONS.idKey,
@@ -196,7 +196,7 @@ export async function discoverActions(
       exportName,
       filePath,
       action,
-      copiedActionEntityId: generatedEntityId(
+      copiedActionEntityId: definedEntityId(
         value[ACTION_DEFINITIONS.idKey],
         location,
         ACTION_DEFINITIONS.idKey,

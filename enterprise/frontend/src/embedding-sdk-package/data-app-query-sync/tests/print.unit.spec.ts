@@ -70,6 +70,17 @@ describe("printing definitions", () => {
     });
   });
 
+  it("resolves a relative file against the app root, as it prints files", async () => {
+    const appRoot = appWithDefinitions();
+
+    expect(
+      JSON.parse(await printDefinitions(appRoot, "actions/orders.action.ts")),
+    ).toEqual({
+      queries: [],
+      actions: [expect.objectContaining({ export: "Create" })],
+    });
+  });
+
   it("fails for a file without definitions", async () => {
     const appRoot = appWithDefinitions();
 

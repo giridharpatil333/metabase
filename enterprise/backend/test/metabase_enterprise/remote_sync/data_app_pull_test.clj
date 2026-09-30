@@ -7,6 +7,7 @@
   mixed (serdes + data apps), and serdes-only."
   (:require
    [clojure.test :refer :all]
+   [metabase-enterprise.data-apps.resource-load :as data-app.resource-load]
    [metabase-enterprise.data-apps.sync :as data-apps.sync]
    [metabase-enterprise.data-apps.test-util :as data-apps.tu]
    [metabase-enterprise.remote-sync.impl :as impl]
@@ -115,7 +116,7 @@
                                                 :current "v0")]
               (is (= :success (:status (import-at! src "v0" :force? true))))
               (let [v0-hash (t2/select-one-fn :bundle_hash :model/DataApp :name "sales")]
-                (mt/with-dynamic-fn-redefs [data-apps.sync/sync-from-snapshot! (fn [_] (throw (ex-info "materialization died" {})))]
+                (mt/with-dynamic-fn-redefs [data-apps.sync/sync-from-snapshot! (fn [& _] (throw (ex-info "materialization died" {})))]
                   (is (= :error (:status (import-at! src "v1")))))
                 (is (= "v0" (remote-sync.task/last-version)) "the failed pull is not the sync base")
                 (is (= v0-hash (t2/select-one-fn :bundle_hash :model/DataApp :name "sales"))
@@ -138,6 +139,28 @@
               (is (= :success (:status (import-at! src "v0"))))
               (is (nil? (t2/select-one-fn :sync_error :model/DataApp :name "sales"))))))))))
 
+(deftest unchanged-pull-retries-only-the-failed-apps-test
+  (testing "a pull of the commit already imported leaves healthy apps alone while it retries a failed one, so an app
+            that keeps failing doesn't make every poll reload every app"
+    (search.tu/with-index-disabled
+      (mt/with-premium-features #{:data-apps}
+        (mt/with-temporary-setting-values [remote-sync-type :read-write remote-sync-transforms false]
+          (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup]
+            (let [src (rs.test/versioned-source :trees {"v0" (merge (app-tree! "sales" "BUNDLE")
+                                                                    (app-tree! "ops" "BUNDLE"))}
+                                                :current "v0")]
+              (is (= :success (:status (import-at! src "v0" :force? true))))
+              (t2/update! :model/DataApp :name "sales" {:sync_error "Table [\"db\" \"PUBLIC\" \"T\"] does not exist on this instance."})
+              (let [loaded (atom [])
+                    load!  data-app.resource-load/load-resources!]
+                (mt/with-dynamic-fn-redefs [data-app.resource-load/load-resources!
+                                            (fn [app & args]
+                                              (swap! loaded conj (:name app))
+                                              (apply load! app args))]
+                  (is (= :success (:status (import-at! src "v0")))))
+                (is (= ["sales"] @loaded))
+                (is (nil? (t2/select-one-fn :sync_error :model/DataApp :name "sales")))))))))))
+
 (deftest unchanged-pull-skips-data-apps-when-none-failed-test
   (testing "a pull of the commit already imported leaves healthy data apps alone"
     (search.tu/with-index-disabled
@@ -146,5 +169,5 @@
           (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup]
             (let [src (rs.test/versioned-source :trees {"v0" (app-tree! "sales" "BUNDLE")} :current "v0")]
               (is (= :success (:status (import-at! src "v0" :force? true))))
-              (mt/with-dynamic-fn-redefs [data-apps.sync/sync-from-snapshot! (fn [_] (throw (ex-info "should not run" {})))]
+              (mt/with-dynamic-fn-redefs [data-apps.sync/sync-from-snapshot! (fn [& _] (throw (ex-info "should not run" {})))]
                 (is (=? {:status :success :outcome {:kind "pull-skipped"}} (import-at! src "v0")))))))))))

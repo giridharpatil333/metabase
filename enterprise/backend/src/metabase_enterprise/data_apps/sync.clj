@@ -241,31 +241,37 @@
    being in the repo. If pruning fails, `:removed` is zero and `:pruning-error` contains
    the error message. Counts for committed app updates are preserved.
 
+   With `:only-failed?`, a retry of the commit already imported, only the apps whose last sync failed are synced and
+   nothing is pruned, so an app that keeps failing doesn't reload every healthy app on each pull.
+
    Two apps can't collide on a slug here: a slug *is* an app's directory name (see
    the config namespace), a repo can't hold two `data_apps/<slug>` directories, and
    discovery takes one config per directory (see [[discover-app-configs]])."
-  [{:keys [read-file list-dir sha]}]
-  ;; realize discovery once (it calls read-file/parse per config); `results` is
-  ;; then walked several times below
-  (let [results       (vec (discover-app-configs list-dir read-file))
-        good          (remove :config-error results)
-        errors        (vec (keep :config-error results))
-        ;; every app directory present in the repo (parsed or not) — the set of
-        ;; slugs that should survive this sync
-        present-slugs (into #{} (map :slug) results)
-        ;; Pruning first frees what a removed app owned, so an app directory renamed in the same commit can load the
-        ;; collection it brought along.
-        {:keys [removed] :as pruning-result} (prune-apps! present-slugs)
-        ;; pre-sync rows, so we can tell a real change from a sha/timestamp bump
-        existing      (into {} (map (juxt :name identity))
-                            (data-apps.db/data-apps-sync-info))
-        changed (count (filter (fn [{:keys [slug] :as cfg}]
-                                 (sync-app! (get existing slug) (assoc cfg :sha sha :read-file read-file :list-dir list-dir)))
-                               results))]
-    (log/infof "[data-app] synced sha=%s apps=%d changed=%d removed=%d errors=%d"
-               sha (count good) changed removed (count errors))
-    (merge {:synced (count good), :changed changed, :sha sha, :config-errors errors}
-           pruning-result)))
+  ([snapshot] (import-from-snapshot! snapshot {}))
+  ([{:keys [read-file list-dir sha]} {:keys [only-failed?]}]
+   ;; realize discovery once (it calls read-file/parse per config); `results` is
+   ;; then walked several times below
+   (let [discovered    (vec (discover-app-configs list-dir read-file))
+         ;; every app directory present in the repo (parsed or not) — the set of
+         ;; slugs that should survive this sync
+         present-slugs (into #{} (map :slug) discovered)
+         ;; Pruning first frees what a removed app owned, so an app directory renamed in the same commit can load the
+         ;; collection it brought along. A retry of the commit already imported has nothing to prune.
+         {:keys [removed] :as pruning-result} (if only-failed? {:removed 0} (prune-apps! present-slugs))
+         ;; pre-sync rows, so we can tell a real change from a sha/timestamp bump
+         existing      (into {} (map (juxt :name identity))
+                             (data-apps.db/data-apps-sync-info))
+         results       (cond->> discovered
+                         only-failed? (filterv (comp :sync_error existing :slug)))
+         good          (remove :config-error results)
+         errors        (vec (keep :config-error results))
+         changed (count (filter (fn [{:keys [slug] :as cfg}]
+                                  (sync-app! (get existing slug) (assoc cfg :sha sha :read-file read-file :list-dir list-dir)))
+                                results))]
+     (log/infof "[data-app] synced sha=%s apps=%d changed=%d removed=%d errors=%d"
+                sha (count good) changed removed (count errors))
+     (merge {:synced (count good), :changed changed, :sha sha, :config-errors errors}
+            pruning-result))))
 
 (defn failed-apps?
   "Whether any app's last sync failed. Loading an app's resources depends on the instance, e.g. on its tables being
@@ -284,14 +290,15 @@
    A no-op returning nil when the `:data-apps` feature is absent: without
    it an instance behaves exactly as if data apps did not exist — no rows,
    collections, or permission groups are materialized, and nothing is pruned."
-  [snapshot]
-  (when (premium-features/enable-data-apps?)
-    (try
-      (let [{:keys [config-errors] :as result} (import-from-snapshot! snapshot)]
-        (when (seq config-errors)
-          (log/warnf "[data-app] %d data_app.yaml config(s) skipped: %s"
-                     (count config-errors) (str/join "; " config-errors)))
-        result)
-      (catch Throwable e
-        (log/warnf "[data-app] sync from remote-sync snapshot failed: %s" (ex-message e))
-        nil))))
+  ([snapshot] (sync-from-snapshot! snapshot {}))
+  ([snapshot opts]
+   (when (premium-features/enable-data-apps?)
+     (try
+       (let [{:keys [config-errors] :as result} (import-from-snapshot! snapshot opts)]
+         (when (seq config-errors)
+           (log/warnf "[data-app] %d data_app.yaml config(s) skipped: %s"
+                      (count config-errors) (str/join "; " config-errors)))
+         result)
+       (catch Throwable e
+         (log/warnf "[data-app] sync from remote-sync snapshot failed: %s" (ex-message e))
+         nil)))))

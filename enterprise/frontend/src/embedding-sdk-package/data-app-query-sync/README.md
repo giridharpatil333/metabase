@@ -44,8 +44,9 @@ same repository, with new entity IDs and references rewritten to the copies.
 ## `print-definitions`
 
 `embedding-sdk-react data-apps print-definitions [file]` prints the evaluated definitions (all of
-them, or those in `file`) as JSON: each query as the hooks see it, and each action's generated schema
-entry, with the entity ID it names in `resources/` (or `null`). This is what the YAML is written from.
+them, or those in `file`, relative to the app directory) as JSON: each query without its
+`savedQuestionEntityId`, and each action's generated schema entry, with the entity ID each names in
+`resources/` (or `null`). This is what the YAML is written from.
 
 ## `check-resources`
 

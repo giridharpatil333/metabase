@@ -52,7 +52,7 @@ applies `resources/`.
 ```
 .
 ├── data_app.yaml           - manifest: version, name, bundle path, allowed_hosts, collection
-├── resources/              ← the app's collection, saved questions, and copied models, metrics, and actions
+├── resources/              - the app's collection, saved questions, and copied models, metrics, and actions
 ├── package.json            - @metabase/embedding-sdk-react + react/react-dom + Vite toolchain
 ├── vite.config.ts          - one-liner: `export default dataAppConfig()`
 ├── tsconfig.json

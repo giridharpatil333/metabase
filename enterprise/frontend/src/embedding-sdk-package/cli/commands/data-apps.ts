@@ -13,7 +13,10 @@ export function addDataAppsCommands(program: Command) {
     .description(
       "print the data app's evaluated query and action definitions as JSON",
     )
-    .argument("[file]", "only the definitions in this file")
+    .argument(
+      "[file]",
+      "only the definitions in this file, relative to the app directory",
+    )
     .option("--app-root <path>", "data app directory", process.cwd())
     .action(
       async (file: string | undefined, { appRoot }: { appRoot: string }) => {

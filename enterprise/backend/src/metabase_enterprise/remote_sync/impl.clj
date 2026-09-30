@@ -318,13 +318,15 @@
    apps would never be re-materialized. A pull of the version already imported also runs it, outside any import
    transaction, when an app's last sync failed. Adapts the snapshot to plain reader fns;
    `data-apps.sync/sync-from-snapshot!` never throws."
-  [^SourceSnapshot snapshot]
-  ;; `read-file` returns file text (a string) or nil; data-apps.sync converts to
-  ;; bytes on its side, keeping all Java interop out of this namespace.
-  (data-apps.sync/sync-from-snapshot!
-   {:read-file (fn [path] (source.p/read-file snapshot path))
-    :list-dir  (fn [path] (source.p/list-dir snapshot path))
-    :sha       (source.p/version snapshot)}))
+  ([snapshot] (materialize-data-apps! snapshot {}))
+  ([^SourceSnapshot snapshot opts]
+   ;; `read-file` returns file text (a string) or nil; data-apps.sync converts to
+   ;; bytes on its side, keeping all Java interop out of this namespace.
+   (data-apps.sync/sync-from-snapshot!
+    {:read-file (fn [path] (source.p/read-file snapshot path))
+     :list-dir  (fn [path] (source.p/list-dir snapshot path))
+     :sha       (source.p/version snapshot)}
+    opts)))
 
 (defn- import-progress-reporter
   "A throttled progress reporter (see `make-progress-reporter`) for the import task `task-id`."
@@ -682,7 +684,7 @@
               (do
                 (log/infof "Skipping import: snapshot version %s matches last imported version" snapshot-version)
                 (when (data-apps.sync/failed-apps?)
-                  (vreset! da-result (materialize-data-apps! snapshot)))
+                  (vreset! da-result (materialize-data-apps! snapshot {:only-failed? true})))
                 {:status :success
                  :version snapshot-version
                  :outcome {:kind "pull-skipped"}})
@@ -718,8 +720,8 @@
         ;; Data apps rode the pull inside `finalize!`, materialized from the real source snapshot (the repo
         ;; file tree under `data_apps/`), not the synthetic merged snapshot `load-snapshot!` sees. They're
         ;; counted outside serdes, so fold how many they upserted or removed into the outcome — otherwise a
-        ;; data-app-only pull would report `pull-skipped` / `count 0`. Paths that skipped `finalize!` left
-        ;; no result: the version did not move, so neither did the apps.
+        ;; data-app-only pull would report `pull-skipped` / `count 0`. The only path that skipped `finalize!`
+        ;; and still has a result is an unchanged pull retrying failed apps; one it fixed counts as a pull.
         (if (= :success (:status result))
           ;; Removals count too: a pull whose only change is deleting an app directory upserts nothing
           ;; (`:changed` 0) but still changed what this instance serves, so it must report as a pull, not skipped.

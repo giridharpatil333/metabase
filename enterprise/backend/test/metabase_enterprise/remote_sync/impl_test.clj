@@ -1872,7 +1872,7 @@ serdes/meta:
       (let [reconciled   (atom nil)
             materialized (atom nil)]
         (mt/with-dynamic-fn-redefs [remote-sync.task/last-version    (constantly "base-B")
-                                    data-apps.sync/sync-from-snapshot! (fn [{:keys [sha]}] (reset! materialized sha) nil)
+                                    data-apps.sync/sync-from-snapshot! (fn [{:keys [sha]} & _] (reset! materialized sha) nil)
                                     spec/extract-entities-for-export (constantly [{:dummy true}])
                                     source/compute-merge (fn [_ _ _ _ & _]
                                                            {:merged [{:path "collections/x.yaml" :content "x"}]
@@ -2002,7 +2002,7 @@ serdes/meta:
       (let [merged?      (atom false)
             materialized (atom nil)]
         (mt/with-dynamic-fn-redefs [remote-sync.task/last-version    (constantly "base-B")
-                                    data-apps.sync/sync-from-snapshot! (fn [{:keys [sha]}] (reset! materialized sha) nil)
+                                    data-apps.sync/sync-from-snapshot! (fn [{:keys [sha]} & _] (reset! materialized sha) nil)
                                     spec/exportable-entities         (constantly {"Card" [999999999]})  ; absent id -> empty extraction; routing is what's under test
                                     source/compute-merge             (fn [& _] (reset! merged? true) {:merged [] :conflicts [] :summary {}})]
           (let [result (impl/export! (export-test-snapshot "remote-R") task-id "msg"
@@ -2022,7 +2022,7 @@ serdes/meta:
       (let [materialized? (atom false)]
         (mt/with-dynamic-fn-redefs [remote-sync.task/last-version      (constantly "remote-R")
                                     spec/exportable-entities           (constantly {"Card" [999999999]})
-                                    data-apps.sync/sync-from-snapshot! (fn [_] (reset! materialized? true) nil)]
+                                    data-apps.sync/sync-from-snapshot! (fn [& _] (reset! materialized? true) nil)]
           (is (= :success (:status (impl/export! (export-test-snapshot "remote-R") task-id "msg" :force? true))))
           (is (false? @materialized?)))))))
 

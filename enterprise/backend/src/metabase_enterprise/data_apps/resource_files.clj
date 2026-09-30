@@ -20,11 +20,11 @@
 
 (set! *warn-on-reflection* true)
 
-(def resources-dir
+(def ^:private resources-dir
   "Directory inside an app's directory that holds its resource files."
   "resources")
 
-(def collection-file
+(def ^:private collection-file
   "The resource collection's file, relative to [[resources-dir]]."
   "collection.yaml")
 
@@ -35,7 +35,7 @@
 (def ^:private dir->model
   (into {} (map (fn [[model dir]] [dir model])) model->dir))
 
-(defn parse-content
+(defn- parse-content
   "Parse the text of a resource file into the entity serdes loads."
   [content]
   (serialization/read-timestamps (yaml/parse-string content {:key-fn serialization/parse-key})))

@@ -31,14 +31,16 @@ const statusFilter = filter(
   "paid",
 );
 
-describe("an unsynchronized table source", () => {
-  const UNSYNCHRONIZED_QUERY = { source: TEST_SCHEMA.tables.orders };
+describe("a table source without a saved question", () => {
+  const QUERY_WITHOUT_SAVED_QUESTION = { source: TEST_SCHEMA.tables.orders };
 
   it("is refused in a deployed data app", async () => {
     EMBEDDING_SDK_CONFIG.isDataApp = true;
 
     await expect(
-      resolveDatasetQueryInBundle(createMockStore())(UNSYNCHRONIZED_QUERY),
+      resolveDatasetQueryInBundle(createMockStore())(
+        QUERY_WITHOUT_SAVED_QUESTION,
+      ),
     ).rejects.toThrow(
       "This query has no saved question. Write it to the app's `resources/cards/`",
     );
@@ -48,25 +50,23 @@ describe("an unsynchronized table source", () => {
     EMBEDDING_SDK_CONFIG.isDataApp = true;
     EMBEDDING_SDK_CONFIG.isDataAppDev = true;
 
-    const datasetQuery =
-      await resolveDatasetQueryInBundle(createMockStore())(
-        UNSYNCHRONIZED_QUERY,
-      );
+    const datasetQuery = await resolveDatasetQueryInBundle(createMockStore())(
+      QUERY_WITHOUT_SAVED_QUESTION,
+    );
 
     expect(stagesOf(datasetQuery)).toMatchObject([{ "source-table": 1 }]);
   });
 
   it("still runs outside a data app, where the SDK addresses tables directly", async () => {
-    const datasetQuery =
-      await resolveDatasetQueryInBundle(createMockStore())(
-        UNSYNCHRONIZED_QUERY,
-      );
+    const datasetQuery = await resolveDatasetQueryInBundle(createMockStore())(
+      QUERY_WITHOUT_SAVED_QUESTION,
+    );
 
     expect(stagesOf(datasetQuery)).toMatchObject([{ "source-table": 1 }]);
   });
 });
 
-describe("a synchronized table source in a deployed data app", () => {
+describe("a table source backed by a saved question in a deployed data app", () => {
   beforeEach(() => {
     EMBEDDING_SDK_CONFIG.isDataApp = true;
   });

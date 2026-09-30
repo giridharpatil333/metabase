@@ -34,7 +34,7 @@ describe("executeAction", () => {
     EMBEDDING_SDK_CONFIG.isDataAppDev = false;
   });
 
-  describe("a synchronized action definition", () => {
+  describe("an action definition with a copied action", () => {
     const AUTHORED_ID = 51;
     const COPIED_ENTITY_ID = "copiedActionEntity091";
     const definition = {
@@ -74,7 +74,7 @@ describe("executeAction", () => {
       await expectExecuted(AUTHORED_ID, { action: { id: AUTHORED_ID } });
     });
 
-    it("refuses an unsynchronized definition in a production build", async () => {
+    it("refuses a definition without a copied action in a production build", async () => {
       EMBEDDING_SDK_CONFIG.isDataApp = true;
 
       await expect(

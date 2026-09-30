@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { printDefinitions } from "../print";
+import { formatDefinitions } from "../format";
 
 import { makeApp, setupResourceTests, writeAction, writeQuery } from "./setup";
 
@@ -19,13 +19,13 @@ function appWithDefinitions() {
   return appRoot;
 }
 
-describe("printing definitions", () => {
+describe("formatting definitions", () => {
   setupResourceTests();
 
   it("prints every evaluated definition with its ID", async () => {
     const appRoot = appWithDefinitions();
 
-    expect(JSON.parse(await printDefinitions(appRoot))).toEqual({
+    expect(JSON.parse(await formatDefinitions(appRoot))).toEqual({
       queries: [
         {
           export: "Orders",
@@ -54,7 +54,7 @@ describe("printing definitions", () => {
 
     expect(
       JSON.parse(
-        await printDefinitions(
+        await formatDefinitions(
           appRoot,
           path.join(appRoot, "actions/orders.action.ts"),
         ),
@@ -69,7 +69,7 @@ describe("printing definitions", () => {
     const appRoot = appWithDefinitions();
 
     expect(
-      JSON.parse(await printDefinitions(appRoot, "actions/orders.action.ts")),
+      JSON.parse(await formatDefinitions(appRoot, "actions/orders.action.ts")),
     ).toEqual({
       queries: [],
       actions: [expect.objectContaining({ export: "Create" })],
@@ -80,7 +80,7 @@ describe("printing definitions", () => {
     const appRoot = appWithDefinitions();
 
     await expect(
-      printDefinitions(appRoot, path.join(appRoot, "src/App.tsx")),
+      formatDefinitions(appRoot, path.join(appRoot, "src/App.tsx")),
     ).rejects.toThrow(
       "src/App.tsx has no defineQuery or defineAction definitions.",
     );

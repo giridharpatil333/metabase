@@ -4,46 +4,28 @@ import path from "node:path";
 
 import { dump as dumpYaml } from "js-yaml";
 
-export function setupResourceTests(): void {
-  const repoRoots: string[] = [];
+const appRoots: string[] = [];
 
+/** Removes every app `makeApp` created and restores mocks after each test. */
+export function setupResourceTests(): void {
   afterEach(() => {
     jest.restoreAllMocks();
 
-    repoRoots.forEach((repoRoot) =>
-      fs.rmSync(repoRoot, { recursive: true, force: true }),
-    );
+    appRoots
+      .splice(0)
+      .forEach((appRoot) =>
+        fs.rmSync(appRoot, { recursive: true, force: true }),
+      );
   });
-
-  trackedRepoRoots = repoRoots;
 }
 
-let trackedRepoRoots: string[] | undefined;
+/** Creates an app directory with `queries/`, `actions/`, and a stub of the SDK's data-app entry. */
+export function makeApp() {
+  const appRoot = fs.mkdtempSync(path.join(os.tmpdir(), "data-app-resources-"));
+  appRoots.push(appRoot);
 
-export const MANIFEST = `# The app's name, shown in Metabase.
-name: Orders
-
-path: ./dist/index.js
-`;
-
-/** Creates `data_apps/<slug>/` in a fresh repository, or next to `sibling`. */
-export function makeApp({
-  slug = "orders",
-  sibling,
-}: { slug?: string; sibling?: string } = {}) {
-  const repoRoot = sibling
-    ? path.dirname(path.dirname(sibling))
-    : fs.mkdtempSync(path.join(os.tmpdir(), "data-app-resources-"));
-
-  if (!sibling) {
-    trackedRepoRoots?.push(repoRoot);
-  }
-
-  const appRoot = path.join(repoRoot, "data_apps", slug);
-
-  fs.mkdirSync(path.join(appRoot, "queries"), { recursive: true });
+  fs.mkdirSync(path.join(appRoot, "queries"));
   fs.mkdirSync(path.join(appRoot, "actions"));
-  fs.writeFileSync(path.join(appRoot, "data_app.yaml"), MANIFEST);
 
   const packageRoot = path.join(
     appRoot,

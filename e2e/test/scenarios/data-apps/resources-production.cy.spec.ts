@@ -132,8 +132,9 @@ describe("scenarios > data apps > resources in production", () => {
       cy.wait("@dataset").then(({ request }) => {
         const [stage] = request.body.stages ?? [];
         expect(stage?.["source-card"], "runs the saved question").to.eq(cardId);
-        expect(stage?.["source-table"], "not the authored table").to.be
-          .undefined;
+        expect(stage?.["source-table"], "not the authored table").to.eq(
+          undefined,
+        );
       });
     });
   });

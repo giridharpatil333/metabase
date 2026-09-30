@@ -132,7 +132,7 @@ function assertUniqueIds(
   const byId = new Map<number | string, string[]>();
 
   for (const { id, location } of entries) {
-    if (id) {
+    if (id !== undefined) {
       byId.set(id, [...(byId.get(id) ?? []), location]);
     }
   }

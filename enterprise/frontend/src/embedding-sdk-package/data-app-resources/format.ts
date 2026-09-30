@@ -8,7 +8,7 @@ import { discoverActions, discoverQueries } from "./discover";
  * only those in `file` (relative to the app root, as files are printed): what
  * the app's `resources/` have to hold.
  */
-export async function printDefinitions(appDirectory: string, file?: string) {
+export async function formatDefinitions(appDirectory: string, file?: string) {
   const appRoot = path.resolve(appDirectory);
   const [queries, actions] = await Promise.all([
     discoverQueries(appRoot),

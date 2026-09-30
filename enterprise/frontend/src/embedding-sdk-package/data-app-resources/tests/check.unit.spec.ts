@@ -137,6 +137,22 @@ describe("resource check", () => {
     await expect(checkResources(appRoot)).rejects.toThrow(message);
   });
 
+  it("reports a question file without an entity ID even when a definition lacks one too", async () => {
+    const appRoot = checkedApp();
+    fs.appendFileSync(
+      path.join(appRoot, "queries/orders.query.ts"),
+      `export const Products = defineQuery({ source: { type: "table", id: 2 } });\n`,
+    );
+    writeResource(appRoot, "cards/unnamed.yaml", {
+      name: "Unnamed",
+      type: "question",
+    });
+
+    await expect(checkResources(appRoot)).rejects.toThrow(
+      "resources/cards/unnamed.yaml is a question no definition names. Delete it.",
+    );
+  });
+
   it("reports every problem at once", async () => {
     const appRoot = checkedApp();
     fs.rmSync(path.join(appRoot, "resources/cards/orders.yaml"));

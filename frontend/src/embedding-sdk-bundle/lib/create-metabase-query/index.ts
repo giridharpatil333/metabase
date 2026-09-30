@@ -76,7 +76,7 @@ async function toSourceInput(
 
   const entityId = input.savedQuestionEntityId;
 
-  if (entityId === null || entityId === undefined) {
+  if (entityId === undefined) {
     // An app's viewers can only read the published cards, so a table source 403s.
     throw new Error(
       "This query has no saved question. Write it to the app's `resources/cards/`, set its `savedQuestionEntityId` in `defineQuery(...)` in `queries/`, run `npm run check-resources`, commit, and rebuild.",

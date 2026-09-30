@@ -173,7 +173,7 @@ export function assertNoDataAppScopeDenials() {
     expect(
       scopeDenials,
       `data-app scope rejections:\n${scopeDenials.join("\n")}`,
-    ).to.be.empty;
+    ).to.deep.eq([]);
   });
 }
 
@@ -506,9 +506,17 @@ export function publishDataApp(
   commitToRepo(`Publish ${slug}`);
   configureGitAndPullChanges("read-write");
 
-  return cy.request<DataApp>(`/api/apps/${slug}`).then(({ body: app }) => {
+  // Read from the admin list: an app whose resources were refused has no
+  // collection, and `/api/apps/:slug` answers 409 for it.
+  return cy.request<DataApp[]>("/api/apps").then(({ body: apps }) => {
+    const app = apps.find(({ name }) => name === slug);
+
+    if (!app) {
+      throw new Error(`Data app ${slug} was not synced.`);
+    }
+
     if (expectSynced) {
-      expect(app.sync_error, `${slug} synced`).to.be.null;
+      expect(app.sync_error, `${slug} synced`).to.eq(null);
     }
 
     return cy.wrap(app, { log: false });

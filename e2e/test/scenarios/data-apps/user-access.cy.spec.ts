@@ -468,8 +468,8 @@ function pullAppReading(tables: PortableTable[]) {
   H.configureGitAndPullChanges("read-write");
 
   cy.request<DataApp>(`/api/apps/${DATA_APP_NAME}`).then(({ body: app }) => {
-    expect(app.sync_error).to.be.null;
-    expect(app.permission_group_id).not.to.be.null;
+    expect(app.sync_error).to.eq(null);
+    expect(app.permission_group_id).not.to.eq(null);
 
     cy.wrap(app.permission_group_id, { log: false }).as("dataAppGroupId");
   });

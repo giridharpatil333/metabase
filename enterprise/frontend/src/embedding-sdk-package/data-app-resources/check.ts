@@ -78,16 +78,19 @@ function leftoverProblems(
   actions: DiscoveredAction[],
   files: ResourceFile[],
 ) {
-  const namedEntityIds = new Set<unknown>([
-    ...queries.map((query) => query.savedQuestionEntityId),
-    ...actions.map((action) => action.copiedActionEntityId),
-  ]);
+  const namedEntityIds = new Set(
+    [
+      ...queries.map((query) => query.savedQuestionEntityId),
+      ...actions.map((action) => action.copiedActionEntityId),
+    ].filter((entityId) => entityId !== undefined),
+  );
+  const isNamed = ({ entity }: ResourceFile) =>
+    typeof entity.entity_id === "string" &&
+    namedEntityIds.has(entity.entity_id);
 
   return files
     .filter(
-      (file) =>
-        (isQuestion(file) || file.model === "Action") &&
-        !namedEntityIds.has(file.entity.entity_id),
+      (file) => (isQuestion(file) || file.model === "Action") && !isNamed(file),
     )
     .map(
       (file) =>

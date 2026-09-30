@@ -6,8 +6,8 @@
        cards/*.yaml         # saved questions, and copies of the models and metrics the app uses
        actions/*.yaml       # copies of the actions the app runs
 
-   `npm run sync-resources` writes them from [[metabase-enterprise.data-apps.render]], and every repository import
-   loads them (see [[metabase-enterprise.data-apps.resource-load]])."
+   The app's author writes them, copying the models, metrics, and actions from their YAML in the same repository, and
+   every repository import loads them (see [[metabase-enterprise.data-apps.resource-load]])."
   (:require
    [clojure.string :as str]
    [metabase-enterprise.serialization.core :as serialization]
@@ -34,28 +34,6 @@
 
 (def ^:private dir->model
   (into {} (map (fn [[model dir]] [dir model])) model->dir))
-
-(def ^:private nano-id-alphabet
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-")
-
-(defn derived-entity-id
-  "The entity ID of an app's copy of the `kind` entity with `source-entity-id`, in the app whose resource collection is
-  `collection-entity-id`. Derived rather than random so rendering again addresses the same copy."
-  [kind collection-entity-id source-entity-id]
-  (let [digest (.digest (MessageDigest/getInstance "SHA-256")
-                        (.getBytes (str/join "\u0000" [kind collection-entity-id source-entity-id])
-                                   StandardCharsets/UTF_8))]
-    (apply str (for [i (range 21)]
-                 (.charAt ^String nano-id-alphabet (bit-and (aget digest i) 63))))))
-
-(defn file-path
-  "The path, relative to [[resources-dir]], of the file holding `entity`, a serdes-extracted Collection, Card, or
-  Action."
-  [entity]
-  (let [{:keys [model id label]} (last (:serdes/meta entity))]
-    (if (= model "Collection")
-      collection-file
-      (str (model->dir model) "/" (serialization/slugify-name label) "_" id ".yaml"))))
 
 (defn parse-content
   "Parse the text of a resource file into the entity serdes loads."

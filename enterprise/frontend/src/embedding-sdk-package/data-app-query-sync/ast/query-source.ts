@@ -10,12 +10,7 @@ export interface QuerySource {
   filePath: string;
 }
 
-interface InspectedQuerySource extends QuerySource {
-  object: ts.ObjectLiteralExpression;
-  sourceFile: ts.SourceFile;
-}
-
-/** A source-controlled definition kind, and where synchronization looks for it. */
+/** A source-controlled definition kind, and where the CLI looks for it. */
 export interface DefinitionKind {
   directory: string;
   factory: string;
@@ -58,54 +53,6 @@ export function findDefinitionSources(
   return listQueryFiles(path.join(appRoot, kind.directory)).flatMap(
     (filePath) => inspectFile(filePath, kind),
   );
-}
-
-/** Writes a generated ID back into its definition. */
-export function injectGeneratedId(
-  target: QuerySource,
-  kind: DefinitionKind,
-  id: string,
-) {
-  const source = inspectFile(target.filePath, kind).find(
-    ({ exportName }) => exportName === target.exportName,
-  );
-
-  if (!source) {
-    throw new Error(
-      `Could not find ${target.exportName} in ${target.filePath}.`,
-    );
-  }
-
-  // Keep the definition's other properties and spreads, removing the old ID.
-  const propertiesWithoutId = source.object.properties.filter(
-    (prop) =>
-      !(
-        prop.name &&
-        (ts.isIdentifier(prop.name) || ts.isStringLiteral(prop.name)) &&
-        prop.name.text === kind.idKey
-      ),
-  );
-
-  // Put the generated ID last so a spread cannot overwrite it with an old ID.
-  const updatedDefinition = ts.factory.updateObjectLiteralExpression(
-    source.object,
-    [
-      ...propertiesWithoutId,
-
-      ts.factory.createPropertyAssignment(
-        kind.idKey,
-        ts.factory.createStringLiteral(id),
-      ),
-    ],
-  );
-
-  const replacement = ts
-    .createPrinter()
-    .printNode(ts.EmitHint.Expression, updatedDefinition, source.sourceFile);
-
-  const contents = source.sourceFile.text;
-  const updated = `${contents.slice(0, source.object.getStart(source.sourceFile))}${replacement}${contents.slice(source.object.getEnd())}`;
-  fs.writeFileSync(target.filePath, updated);
 }
 
 function listQueryFiles(directory: string): string[] {
@@ -198,10 +145,7 @@ const isFactoryCall = (
   ts.isIdentifier(node.expression) &&
   names.has(node.expression.text);
 
-function inspectFile(
-  filePath: string,
-  kind: DefinitionKind,
-): InspectedQuerySource[] {
+function inspectFile(filePath: string, kind: DefinitionKind): QuerySource[] {
   const contents = fs.readFileSync(filePath, "utf8");
 
   const sourceFile = ts.createSourceFile(
@@ -228,26 +172,22 @@ function inspectFile(
     }
   }
 
-  const definitionSources: InspectedQuerySource[] = [];
+  const definitionSources: QuerySource[] = [];
 
   const visit = (node: ts.Node) => {
     if (isFactoryCall(node, factoryNames)) {
       const declaration = node.parent;
       const statement = declaration.parent?.parent;
-      const object = definitionObjectArgument(node);
-
-      if (!isDirectNamedDefinition(node, declaration, statement) || !object) {
+      if (
+        !isDirectNamedDefinition(node, declaration, statement) ||
+        !definitionObjectArgument(node)
+      ) {
         throw new Error(
           `${filePath}: ${kind.factory} must directly initialize a named exported variable with one object literal.`,
         );
       }
 
-      definitionSources.push({
-        exportName: declaration.name.text,
-        filePath,
-        object,
-        sourceFile,
-      });
+      definitionSources.push({ exportName: declaration.name.text, filePath });
     }
 
     ts.forEachChild(node, visit);

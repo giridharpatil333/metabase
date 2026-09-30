@@ -77,9 +77,10 @@ collection, saved questions, and actions.
 ## Resources
 
 An app's saved questions, the copies of the metrics and models they use, and the copies of the
-actions it runs live in its resource collection. `npm run sync-resources` renders them with
-`POST /api/apps/resources/render` (`render.clj`) and commits them as serdes YAML under the app's
-`resources/`; every import loads them (`resource_load.clj`). So the repository owns them:
+actions it runs live in its resource collection. The app's author commits them as serdes YAML under
+the app's `resources/`, copying the models, metrics, and actions from their YAML in the same
+repository; every import loads them (`resource_load.clj`). Nothing in Metabase renders them. So the
+repository owns them:
 
 - **Every import reloads them.** An edit or trash made in Metabase is put back, and a card or action
   whose file is gone is deleted. A card moved out of the collection is no longer the app's, so the
@@ -135,9 +136,6 @@ assets (`metabase.server.routes/static-files-handler`).
   carrying the CSP that confines `'unsafe-eval'` to that realm.
 - `PUT /api/apps/:slug` — toggle `enabled` (superuser).
 - `DELETE /api/apps/:slug` — drop a row, its bundle, and its owned resources (superuser).
-- `POST /api/apps/resources/render` — render an app's resource files from its query and action
-  definitions, writing nothing. Allowed to anyone who can run every query and read every action and
-  its model.
 - `GET /api/apps/repo-status` — whether a repo is connected (superuser).
 
 Responses are field-filtered by role: superusers get full metadata, everyone else gets `name` and
@@ -179,9 +177,8 @@ nothing, it can never lift another group's sandbox, so sandboxing needs no data-
 | `config.clj`          | `data_app.yaml` parsing and validation; the `data_apps/` layout constants.                          |
 | `api.clj`             | The `/api/apps` endpoints, bundle serving, ETag handling.                                           |
 | `resources.clj`       | The app's permission group, and its link to the resource collection: view-data blocking, deletion.  |
-| `resource_files.clj`  | The `resources/` layout, parsing, and the entity IDs of copies.                                     |
+| `resource_files.clj`  | The `resources/` layout and parsing.                                                                |
 | `resource_load.clj`   | Validating and loading an app's resource files, pruning, and recording the tables they read.       |
-| `render.clj`          | Rendering resource files from query and action definitions.                                         |
 | `core.clj`            | What other modules may ask: which cards are an app's resources.                                     |
 | `models/data_app.clj` | The `:model/DataApp` Toucan model, permissions, blob coercion.                                      |
 | `csp.clj`             | `allowed_hosts` lookup for the core CSP middleware.                                                 |

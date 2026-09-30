@@ -14,6 +14,7 @@ import { defineAction } from "@metabase/embedding-sdk-react/data-app";
 import schema from "../src/metabase.data";
 
 export const CreateOrder = defineAction({
+  copiedActionEntityId: "<entity ID of the copy in resources/actions/>",
   action: schema.models.orders.actions.create,
 });
 ```
@@ -51,19 +52,21 @@ export function CreateOrderForm({ onCreated }: { onCreated: () => void }) {
 
 Rules:
 
-- This directory sits beside `package.json`, not under `src/`. Synchronization
-  (`npm run sync-resources`) scans only `queries/` and `actions/`, so a
-  definition anywhere else is never synchronized, and the authored action is
-  refused for the app's viewers in production.
+- This directory sits beside `package.json`, not under `src/`. The CLI scans
+  only `queries/` and `actions/`, so a definition anywhere else never gets a
+  copy, and the authored action is refused for the app's viewers in production.
 - Actions exist only when the generated schema includes models
-  (`include-models=true`). Synchronization copies actions; it never creates
-  them.
+  (`include-models=true`). The app runs a copy of each action, on a copy of its
+  model, both taken from the YAML already in this repository; it never creates
+  actions.
 - Pass the export itself to `useAction`. Never pass
   `schema.models.<model>.actions.<action>` or its `.id`.
-- After adding or changing a definition, run `npm run sync-resources` and commit
-  what it writes: the definitions and `resources/`. `npm run build` fails until
-  they match.
-- `copiedActionEntityId` is written by synchronization. Never add, edit, copy,
-  or remove it by hand.
+- `copiedActionEntityId` is the entity ID of the action's copy in
+  `resources/actions/`. After adding a definition, copy the action and its
+  model into `resources/`, run `npm run check-resources`, and commit the
+  definitions and `resources/` together. `npm run build` fails until they
+  match.
+- Never copy a `copiedActionEntityId` to another definition, or remove it while
+  its copy exists.
 - After `execute` resolves, refresh every query on screen the action could have
   changed.

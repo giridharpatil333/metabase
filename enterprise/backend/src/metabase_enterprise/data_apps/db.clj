@@ -52,23 +52,10 @@
   (t2/select [:model/DataApp :name :display_name :description :version :allowed_hosts :bundle_path
               :bundle_hash :resources_hash :sync_error]))
 
-(defn table-database-id
-  "The database ID for the Table with `table-id`, or nil."
-  [table-id]
-  (t2/select-one-fn :db_id :model/Table :id table-id
-                    {:from [(warehouse-schema-overlay/table-query {:user-settings? false})]}))
-
 (defn users-for-permission-warnings
   "The fields needed to calculate permission warnings for Users with `user-ids`."
   [user-ids]
   (t2/select [:model/User :id :is_superuser :is_active :tenant_id] :id [:in user-ids]))
-
-(defn metrics-by-ids
-  "The metric Cards with `metric-ids`."
-  [metric-ids]
-  (if (seq metric-ids)
-    (t2/select :model/Card :id [:in metric-ids] :type "metric")
-    []))
 
 (mu/defn data-app-exists?
   "Whether a DataApp named `slug` exists."
@@ -239,23 +226,6 @@
                                :from   [[:query_action :qa]]
                                :join   [[:action :a] [:= :a.id :qa.action_id]]
                                :where  [:in :a.model_id model-ids]})))))
-
-(defn card
-  "The Card with `card-id`, or nil."
-  [card-id]
-  (t2/select-one :model/Card :id card-id))
-
-(defn action
-  "The unarchived Action with `action-id`, or nil."
-  [action-id]
-  (t2/select-one :model/Action :id action-id :archived false))
-
-(defn action-children
-  "The type-specific rows of the Action with `action-id`, keyed as serdes nests them."
-  [action-id]
-  {:query    (t2/select :model/QueryAction :action_id action-id)
-   :implicit (t2/select :model/ImplicitAction :action_id action-id)
-   :http     (t2/select :model/HTTPAction :action_id action-id)})
 
 (defn internal-user-email
   "The email of Metabase's internal user, which owns the cards and actions data apps load."

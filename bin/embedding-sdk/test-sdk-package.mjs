@@ -72,20 +72,21 @@ try {
     NPM_COMMAND_OPTIONS,
   );
 
-  // Check that the installed CLI has data apps sync command
-  const output = execFileSync(
-    process.execPath,
-    [
-      path.join(installedPackage, manifest.bin),
-      "data-apps",
-      "sync-resources",
-      "--help",
-    ],
-    NPM_COMMAND_OPTIONS,
-  );
+  for (const command of ["print-definitions", "check-resources"]) {
+    const output = execFileSync(
+      process.execPath,
+      [
+        path.join(installedPackage, manifest.bin),
+        "data-apps",
+        command,
+        "--help",
+      ],
+      NPM_COMMAND_OPTIONS,
+    );
 
-  assert.match(output, /Usage: .*sync-resources/);
-  assert.match(output, /--app-root/);
+    assert.match(output, new RegExp(`Usage: .*${command}`));
+    assert.match(output, /--app-root/);
+  }
 
   console.log("SDK package smoke test passed.");
 } finally {

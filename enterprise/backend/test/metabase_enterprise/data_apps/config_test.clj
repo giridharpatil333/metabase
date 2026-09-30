@@ -138,8 +138,8 @@ path: ./dist/index.js"))))
 (deftest parse-collection-test
   (testing "the resource collection's entity ID is carried through"
     (is (= "otherCollection000000" (:collection (parse "name: X\npath: dist/index.js\ncollection: otherCollection000000")))))
-  (testing "an app without one is told how to create it"
-    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"\"collection\" must be the entity ID.*npm run sync-resources"
+  (testing "an app without one is told where it comes from"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"\"collection\" must be the entity ID of the app's resource collection in resources/collection\.yaml"
                           (data-app.config/parse-app-config (->bytes "name: X\npath: dist/index.js") "data_apps/sales"))))
   (testing "anything but an entity ID is rejected"
     (doseq [bad ["short" "'123456789012345678901234'" "[a]" "has spaces in it abcde"]]

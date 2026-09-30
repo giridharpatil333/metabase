@@ -28,15 +28,19 @@ Admin → Embedding → Embedded analytics SDK → CORS.
 ## Ship
 
 ```bash
-npm run sync-resources                # renders queries/ and actions/ into resources/
+npm run print-definitions             # prints queries/ and actions/ as JSON
+npm run validate-resources            # validates the repository's Metabase YAML
+npm run check-resources               # checks resources/ backs every definition
 npm run build                         # produces a single dist/index.js
 ```
 
-`sync-resources` only reads from Metabase. It writes the app's collection,
-saved questions, and actions as YAML into `resources/`, adds `collection:` to
-`data_app.yaml` on its first run, and writes generated IDs into the
-definitions. Run it after any change to `queries/` or `actions/`; the build
-fails until `resources/` matches them.
+`resources/` holds the app's collection, a saved question per query, and copies
+of the models, metrics, and actions they use, as Metabase YAML. It is written
+from the printed definitions, with the copies taken from the YAML already in
+this repository; `data_app.yaml`'s `collection:` names the collection, and each
+definition names its file by entity ID. None of these commands calls Metabase.
+Update `resources/` after any change to `queries/` or `actions/`; the check and
+the build fail until it matches them.
 
 Commit `dist/index.js` (the `path` declared in `data_app.yaml`), `resources/`,
 and your source. The app appears at `/apps/<slug>` after Metabase's next
@@ -48,6 +52,7 @@ applies `resources/`.
 ```
 .
 ├── data_app.yaml           - manifest: version, name, bundle path, allowed_hosts, collection
+├── resources/              ← the app's collection, saved questions, and copied models, metrics, and actions
 ├── package.json            - @metabase/embedding-sdk-react + react/react-dom + Vite toolchain
 ├── vite.config.ts          - one-liner: `export default dataAppConfig()`
 ├── tsconfig.json
@@ -65,9 +70,8 @@ applies `resources/`.
 
 `queries/` and `actions/` are not optional: the query hooks accept only a
 `defineQuery(...)` export and `useAction` only a `defineAction(...)` export, and
-`npm run sync-resources` synchronizes exactly those two directories into
-`resources/`. Read
-their READMEs before the first hook call.
+each definition in those two directories is backed by a file in `resources/`.
+Read their READMEs before the first hook call.
 
 The build, dev server, Near-Membrane sandbox, and bundle contract all live in
 the SDK behind `dataAppConfig()` — there's no `index.html` or separate dev entry

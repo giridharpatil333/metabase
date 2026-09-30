@@ -40,7 +40,7 @@ const _copiedActionEntityId: "createOrderCopyEntity" =
   CreateOrder.copiedActionEntityId;
 const _sourceActionId: 51 = CreateOrder.action.id;
 
-// A definition is authored without a generated ID; synchronization writes one.
+// A definition is valid before its copy is written.
 const UpdateOrder = defineAction({
   action: TEST_SCHEMA.models.orders.actions.update,
 });

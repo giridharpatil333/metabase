@@ -2,8 +2,8 @@ import type { DefinedAction } from "./types";
 
 /**
  * Defines a source-controlled data app action. `action` names the generated
- * action the app runs. `copiedActionEntityId` is generated state — synchronization
- * writes it back, so never set or edit it by hand.
+ * action the app runs. `copiedActionEntityId` is the entity ID of the action's
+ * copy in the app's `resources/actions/`, which a production build runs.
  */
 export function defineAction<
   const TDefinition extends {

@@ -1,36 +1,68 @@
 import { Command } from "commander";
 
-import { syncResourcesAction } from "../actions/sync-resources";
+import { checkResources } from "../../data-app-query-sync/check";
+import { printDefinitions } from "../../data-app-query-sync/print";
 
 import { addDataAppsCommands } from "./data-apps";
 
-jest.mock("../actions/sync-resources", () => ({
-  syncResourcesAction: jest.fn(),
+jest.mock("../../data-app-query-sync/check", () => ({
+  checkResources: jest.fn(),
 }));
 
+jest.mock("../../data-app-query-sync/print", () => ({
+  printDefinitions: jest.fn().mockResolvedValue('{"queries":[],"actions":[]}'),
+}));
+
+async function run(...args: string[]) {
+  const program = new Command();
+  addDataAppsCommands(program);
+  await program.parseAsync(["node", "cli", "data-apps", ...args]);
+}
+
 describe("data app commands", () => {
-  it("runs resource synchronization for the requested app root", async () => {
-    const program = new Command();
-    addDataAppsCommands(program);
-
-    await program.parseAsync([
-      "node",
-      "cli",
-      "data-apps",
-      "sync-resources",
-      "--app-root",
-      "data_apps/orders",
-    ]);
-
-    expect(syncResourcesAction).toHaveBeenCalledWith("data_apps/orders");
+  beforeEach(() => {
+    jest.spyOn(process.stdout, "write").mockImplementation(() => true);
   });
 
-  it("runs resource synchronization from the current directory by default", async () => {
-    const program = new Command();
-    addDataAppsCommands(program);
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
 
-    await program.parseAsync(["node", "cli", "data-apps", "sync-resources"]);
+  it("checks the resources of the requested app root", async () => {
+    await run("check-resources", "--app-root", "data_apps/orders");
 
-    expect(syncResourcesAction).toHaveBeenCalledWith(process.cwd());
+    expect(checkResources).toHaveBeenCalledWith("data_apps/orders");
+    expect(process.stdout.write).toHaveBeenCalledWith(
+      "resources/ backs every definition.\n",
+    );
+  });
+
+  it("checks the resources of the current directory by default", async () => {
+    await run("check-resources");
+
+    expect(checkResources).toHaveBeenCalledWith(process.cwd());
+  });
+
+  it("prints the definitions of one file", async () => {
+    await run(
+      "print-definitions",
+      "queries/orders.query.ts",
+      "--app-root",
+      "data_apps/orders",
+    );
+
+    expect(printDefinitions).toHaveBeenCalledWith(
+      "data_apps/orders",
+      "queries/orders.query.ts",
+    );
+    expect(process.stdout.write).toHaveBeenCalledWith(
+      '{"queries":[],"actions":[]}\n',
+    );
+  });
+
+  it("prints every definition by default", async () => {
+    await run("print-definitions");
+
+    expect(printDefinitions).toHaveBeenCalledWith(process.cwd(), undefined);
   });
 });

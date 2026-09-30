@@ -1,25 +1,11 @@
-import {
-  generateEntityId,
-  getDerivedEntityId,
-  isEntityId,
-} from "../entity-ids";
+import { isEntityId } from "../entity-ids";
 
 describe("entity IDs", () => {
-  it("generates NanoIDs", () => {
-    const first = generateEntityId();
-
-    expect(isEntityId(first)).toBe(true);
-    expect(generateEntityId()).not.toBe(first);
-  });
-
-  it("derives the same copy entity ID as the backend", () => {
-    // `derived-entity-id` in `metabase-enterprise.data-apps.resource-files` returns this for the same input.
-    expect(
-      getDerivedEntityId(
-        "action",
-        "shop-cccccccccccccccc",
-        "sourceActionEntity01",
-      ),
-    ).toBe("JIon8kCXvwU9wR4WtI5Aa");
+  it("accepts only 21-character NanoIDs", () => {
+    expect(isEntityId("questionEntityId00010")).toBe(true);
+    expect(isEntityId("question-Entity_Id001")).toBe(true);
+    expect(isEntityId("tooShort")).toBe(false);
+    expect(isEntityId("questionEntityId0001!")).toBe(false);
+    expect(isEntityId(10)).toBe(false);
   });
 });

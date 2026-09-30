@@ -11,8 +11,9 @@ type SavedQuestionBinding = {
 };
 
 /**
- * Defines a source-controlled data app query that can be synchronized to a
- * saved question.
+ * Defines a source-controlled data app query. `savedQuestionEntityId` is the
+ * entity ID of its saved question in the app's `resources/cards/`, which a
+ * production build runs.
  */
 export function defineQuery<
   TEntity extends TableSchema | undefined = undefined,

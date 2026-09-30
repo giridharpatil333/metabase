@@ -141,9 +141,10 @@ Once the template is in `<repo>/data_apps/<slug>/` (run everything below from th
    #   - https://*.internal.acme.com
    ```
 
-   Commit it alongside the built bundle (the file `path` points at). The first
-   `npm run sync-resources` appends a generated `collection:` line — the app's own
-   collection in Metabase. Never write, edit, or copy that line by hand.
+   Commit it alongside the built bundle (the file `path` points at). It also
+   gets a `collection:` line, the entity ID of the app's own collection in
+   `resources/collection.yaml`, written in Step 5. Never copy that line from
+   another app.
 
    **`description`** — optional: a single short sentence saying what the app
    does, shown under its name in the admin UI so admins can tell apps apart at a
@@ -185,9 +186,12 @@ At this point the data app exists. Keep this workflow focused on creating the
 project scaffold and proving the starter bundle works.
 
 1. Run `npm run typecheck`.
-2. Run `npm run sync-resources` from the app directory, with the repo-root
-   `.env.local` in place. It assigns the app's collection (the `collection:`
-   line in `data_app.yaml`) and writes `resources/`. It changes nothing in Metabase.
+2. Write the app's collection: generate an entity ID with
+   `npx representations generate-entity-id`, write
+   `resources/collection.yaml`, and add `collection: <id>` to `data_app.yaml`
+   (use skill discovery to find the data-app guidance on writing an app's
+   `resources/`). Then run `npm run validate-resources` and
+   `npm run check-resources`. Neither changes anything in Metabase.
 3. Run `npm run build`.
 4. Confirm `git status` shows the app source, lockfile, `data_app.yaml`,
    `resources/`, and the built bundle (`dist/index.js` by default) as
@@ -335,7 +339,7 @@ src/
     └── customer.ts
 ```
 
-Vite bundles everything reachable from `src/index.tsx` into a single `dist/index.js` IIFE — the `src/` layout is purely for your own readability. `queries/` and `actions/` are not: `npm run sync-resources` synchronizes exactly those two root-level directories into `resources/`, `npm run build` fails until they match, and the query and action hooks accept only the `defineQuery` / `defineAction` exports declared there. A query object written at a hook call, under `src/`, or spread from a definition does not compile (`Property 'definedWithDefineQuery' is missing`); the fix is to move it into `queries/` and import it, never a cast.
+Vite bundles everything reachable from `src/index.tsx` into a single `dist/index.js` IIFE — the `src/` layout is purely for your own readability. `queries/` and `actions/` are not: each definition in those two root-level directories is backed by a file in `resources/`, `npm run build` fails until they match, and the query and action hooks accept only the `defineQuery` / `defineAction` exports declared there. A query object written at a hook call, under `src/`, or spread from a definition does not compile (`Property 'definedWithDefineQuery' is missing`); the fix is to move it into `queries/` and import it, never a cast.
 
 **If the app has multiple tabs (or any top-level screen switcher), the default — leftmost / first — tab MUST be selected on initial load.** The app should never boot to a blank page, an empty shell, or a "nothing selected" state that waits for the user to click. Agents repeatedly forget this. For local-state tabs, initialize the active tab to the first one so the very first render shows it:
 
@@ -530,8 +534,8 @@ Do not wrap `InteractiveQuestion` or `StaticQuestion` in containers that clip or
 
 Data apps are delivered by Git, not uploaded — you commit the app directory and Metabase pulls it on its next remote-sync import.
 
-1. `npm run sync-resources` → after any change to `queries/` or `actions/`, renders the saved questions and actions into `resources/` and writes their generated IDs into the definitions. It only reads from Metabase; the pull in step 3 is what applies them.
-2. `npm run build` → produces the bundle at your `data_app.yaml` `path` (the template builds to `dist/index.js`). It fails when `resources/` doesn't match the definitions; run step 1 and rebuild.
+1. After any change to `queries/` or `actions/`, update `resources/` to match and run `npm run validate-resources` and `npm run check-resources`. Nothing reaches Metabase until the pull in step 4 applies it.
+2. `npm run build` → produces the bundle at your `data_app.yaml` `path` (the template builds to `dist/index.js`). It fails when `resources/` doesn't match the definitions; fix `resources/` and rebuild.
 3. From the **repo root**, commit the app directory — its `data_app.yaml`, `resources/`, the built bundle (the file `path` points at), the source, and the lockfile — and **push**:
    ```bash
    git add data_apps/<slug>
@@ -542,7 +546,7 @@ Data apps are delivered by Git, not uploaded — you commit the app directory an
 
 > **Don't offer to "deploy" the app or ask how the bundle reaches a staging environment** — there is no separate deploy step, and the question only confuses users: Metabase imports the committed bundle straight from the connected repo on its next sync. Once the change is on the branch Metabase syncs from — however the user gets it there (a merged PR, or a push straight to that branch) — just tell them to pull it in and open the app in Metabase at `/apps/<slug>`.
 
-- **To update:** sync resources if the definitions changed, commit a new build, and pull again. Saved questions and actions in the app's collection are owned by `resources/`: each pull puts back any edit made in Metabase.
+- **To update:** update `resources/` if the definitions changed, commit a new build, and pull again. Saved questions and actions in the app's collection are owned by `resources/`: each pull puts back any edit made in Metabase.
 - **To remove:** delete the app's directory from the repo and push — the next sync removes it, with its collection, saved questions, and actions. You can't delete a repo-managed app from the UI; the *Remove* action on the Data apps admin page appears only after the repo is disconnected, to clear out apps left behind.
 
 ## Common pitfalls
@@ -558,7 +562,7 @@ Data apps are delivered by Git, not uploaded — you commit the app directory an
 | Bundle is multi-MB. | React/the SDK should be externalized by the contract plugin — confirm `vite.config.ts` still uses `dataAppConfig()` and the pinned data-apps SDK tag is installed. (A large but not multi-MB bundle can also be inlined assets — see the single-file note above.) |
 | `dist/index.js` doesn't assign to `__dataAppFactory__`. | `src/index.tsx` must `export default` the `DataAppFactory` — the preset wires that into the IIFE global. |
 | `Cannot find module '@metabase/embedding-sdk-react'`. | Run `npm install` (or the equivalent for your package manager). Types come from the package directly. |
-| `Property 'definedWithDefineQuery' is missing` / `Property 'definedWithDefineAction' is missing` on a hook call. | The hook got an inline object, a `satisfies`-typed object, or a spread copy instead of a definition. Export it with `defineQuery` from root-level `queries/` (or `defineAction` from `actions/`) and pass the import. Do not cast, and do not wrap the object in `defineQuery(...)` at the call site: that compiles but is never synchronized. |
+| `Property 'definedWithDefineQuery' is missing` / `Property 'definedWithDefineAction' is missing` on a hook call. | The hook got an inline object, a `satisfies`-typed object, or a spread copy instead of a definition. Export it with `defineQuery` from root-level `queries/` (or `defineAction` from `actions/`) and pass the import. Do not cast, and do not wrap the object in `defineQuery(...)` at the call site: that compiles but is never backed by a saved question. |
 | Drill popups don't open / SDK components show empty / "MetabaseProvider not found" at runtime in dev. | `App.tsx` is rendering its own `<MetabaseProvider>` — remove it. The dev entry (SDK) and the production host provide the provider; wrapping it inside the bundle routes the SDK's state paths through the sandbox and breaks them. |
 | Dev preview blank / `Bundle did not assign a function to __dataAppFactory__` / sandbox errors in dev. | `src/index.tsx` isn't default-exporting the factory, or your app code throws while the sandbox evaluates the bundle. Read the real error from the diagnostics feed (`curl -s "http://localhost:5174/__data-app/diagnostics?startEventId=0"`), or the dev toolbar's **Diagnostics** panel. |
 | A network call works in `npm run dev` but is blocked after syncing to Metabase. | It was never allowed — you edited `allowed_hosts` without restarting the dev server, so the running sandbox and CSP still use the boot-time list. Restart `npm run dev`; the feed's `manifest` section flags this as `restartRequired`. |

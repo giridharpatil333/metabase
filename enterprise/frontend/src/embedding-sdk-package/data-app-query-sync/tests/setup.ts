@@ -2,6 +2,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+import { dump as dumpYaml } from "js-yaml";
+
 export function setupResourceSyncTests(): void {
   const repoRoots: string[] = [];
 
@@ -86,9 +88,14 @@ export function writeQuery(appRoot: string, body: string) {
   return filePath;
 }
 
-export function jsonResponse(body: unknown, status = 200) {
-  return new Response(status === 204 ? null : JSON.stringify(body), {
-    status,
-    headers: { "content-type": "application/json" },
-  });
+/** Writes `entity` as YAML to `resources/<relativePath>`. */
+export function writeResource(
+  appRoot: string,
+  relativePath: string,
+  entity: Record<string, unknown>,
+) {
+  const filePath = path.join(appRoot, "resources", relativePath);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, dumpYaml(entity));
+  return filePath;
 }

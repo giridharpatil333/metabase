@@ -53,17 +53,19 @@ export function Overview() {
 
 Rules:
 
-- This directory sits beside `package.json`, not under `src/`. `npm run
-  sync-resources` scans only `queries/` and `actions/`, so a definition anywhere
-  else is never synchronized and fails in production.
+- This directory sits beside `package.json`, not under `src/`. The CLI scans
+  only `queries/` and `actions/`, so a definition anywhere else never gets a
+  saved question and fails in production.
 - Keep a definition static. A clause whose value comes from a control (a
   selected filter, a date range, a search box) goes in the hook's second
   argument, never inside `defineQuery`.
 - One export per query the app renders. Filter-option queries, KPI queries, and
   helper queries are queries too.
 - Pass the export itself to the hook. Never spread or copy it.
-- After adding or changing a definition, run `npm run sync-resources` and commit
-  what it writes: the definitions and `resources/`. `npm run build` fails until
-  they match.
-- `savedQuestionEntityId` is written by synchronization. Never add, edit, copy,
-  or remove it by hand.
+- Each definition carries `savedQuestionEntityId`, the entity ID of its saved
+  question in `resources/cards/`. After adding or changing a definition, update
+  that card (`npm run print-definitions` shows what it must hold), run
+  `npm run check-resources`, and commit the definitions and `resources/`
+  together. `npm run build` fails until they match.
+- Never copy a `savedQuestionEntityId` to another definition, or remove it while
+  its card exists.

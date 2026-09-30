@@ -149,7 +149,7 @@
     (throw-problems!
      (concat
       (when (empty? collections)
-        [(tru "The app''s resource collection is missing. Run `npm run sync-resources` and commit its output.")])
+        [(tru "The app''s resource collection is missing. Write it to resources/collection.yaml and commit it.")])
       (duplicate-problems resources)
       (mapcat identity-problems resources)))
     (throw-problems!
@@ -179,7 +179,7 @@
     (concat
      (for [{:keys [id entity_id]} (data-apps.db/collections-by-entity-ids (entity-ids-of "Collection"))
            :when (not (owned-by-app? app-collection-id id))]
-       (tru "Collection {0} already exists and isn''t this data app''s collection. Give the app a new collection by removing \"collection\" from data_app.yaml and running `npm run sync-resources`."
+       (tru "Collection {0} already exists and isn''t this data app''s collection. Give the app a new collection: a new entity ID in data_app.yaml and resources/collection.yaml."
             entity_id))
      (foreign "Card" (data-apps.db/cards-by-entity-ids (entity-ids-of "Card")))
      (foreign "Action" (data-apps.db/actions-by-entity-ids (entity-ids-of "Action"))))))
@@ -224,7 +224,7 @@
       (import-field-fk [_ path] (when path (field-id path))))))
 
 (def ^:private instance-field-defaults
-  "Fields someone can set in Metabase that a rendered file may leave out. Serdes omits nil fields and an import only
+  "Fields someone can set in Metabase that a resource file may leave out. Serdes omits nil fields and an import only
   writes the fields a file carries, so these defaults are loaded under the file's own values to put back an edit."
   {"Card"       (merge (zipmap [:collection_position :dashboard_id :description :document_id
                                 :embedding_params :embedding_type :made_public_by_id :public_uuid]

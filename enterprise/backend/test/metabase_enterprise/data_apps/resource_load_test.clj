@@ -1,10 +1,9 @@
 (ns metabase-enterprise.data-apps.resource-load-test
-  "Resources rendered by `POST /api/apps/resources/render` and loaded by a repository import."
+  "Resource files as an author commits them, loaded by a repository import."
   (:require
    [clojure.string :as str]
    [clojure.test :refer :all]
    [clojure.walk :as walk]
-   [metabase-enterprise.data-apps.resource-files :as data-app.resource-files]
    [metabase-enterprise.data-apps.resource-load :as data-app.resource-load]
    [metabase-enterprise.data-apps.sync :as data-app.sync]
    [metabase-enterprise.data-apps.test-util :as data-apps.tu]
@@ -73,31 +72,22 @@
                                              :dataset_query (lib/native-query mp "UPDATE venues SET name = {{name}}")
                                              :parameters    [{:id "name" :slug "name" :type :string/=}]})}))))
 
-(defn- render [metric-id action-ids]
-  (data-apps.tu/render collection-eid
-                       [{:entity_id question-eid :name "VenuesList" :query (venues-query)}
-                        {:entity_id metric-question-eid :name "VenueCount" :query (metric-query metric-id)}]
-                       action-ids))
+(defn- resources-for [metric-id action-ids]
+  (data-apps.tu/build-resources collection-eid
+                                [{:entity_id question-eid :name "VenuesList" :query (venues-query)}
+                                 {:entity_id metric-question-eid :name "VenueCount" :query (metric-query metric-id)}]
+                                action-ids))
 
 (defn- copy-eid [kind source-id]
-  (data-app.resource-files/derived-entity-id
+  (data-apps.tu/copy-entity-id
    kind collection-eid (t2/select-one-fn :entity_id (if (= kind "action") :model/Action :model/Card) :id source-id)))
 
-(deftest render-and-import-materializes-resources-test
+(deftest import-materializes-resources-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card :model/Action]
       (do-with-sources!
        (fn [{:keys [metric-id model-id implicit-id query-action-id]}]
-         (let [response  (render metric-id [implicit-id query-action-id])
-               resources (data-apps.tu/resource-files response)]
-           (testing "the response maps each source action to the entity ID of its copy"
-             (is (= #{{:id implicit-id :entity_id (copy-eid "action" implicit-id)}
-                      {:id query-action-id :entity_id (copy-eid "action" query-action-id)}}
-                    (set (:actions response)))))
-           (testing "rendering again produces the same files"
-             (is (= resources (data-apps.tu/resource-files (render metric-id [implicit-id query-action-id])))))
-           (testing "rendering writes nothing"
-             (is (nil? (t2/select-one :model/Collection :entity_id collection-eid))))
+         (let [resources (resources-for metric-id [implicit-id query-action-id])]
            (is (=? {:synced 1 :changed 1} (import! resources)))
            (is (nil? (sync-error)))
            (let [collection-id (app-collection-id)
@@ -134,10 +124,9 @@
 (deftest import-reverts-manual-edits-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
-      (let [resources (data-apps.tu/resource-files
-                       (data-apps.tu/render collection-eid
-                                            [{:entity_id question-eid :name "VenuesList" :query (venues-query)}]
-                                            []))]
+      (let [resources (data-apps.tu/build-resources collection-eid
+                                                    [{:entity_id question-eid :name "VenuesList" :query (venues-query)}]
+                                                    [])]
         (import! resources)
         (let [collection-id (app-collection-id)
               card-id       (:id (card-by-eid question-eid))]
@@ -189,7 +178,7 @@
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card :model/Action]
       (do-with-sources!
        (fn [{:keys [metric-id implicit-id]}]
-         (let [resources (data-apps.tu/resource-files (render metric-id [implicit-id]))
+         (let [resources (resources-for metric-id [implicit-id])
                copy-id   (copy-eid "action" implicit-id)]
            (import! resources)
            (t2/update! :model/Action :entity_id copy-id {:public_uuid       (str (random-uuid))
@@ -204,7 +193,7 @@
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card :model/Action]
       (do-with-sources!
        (fn [{:keys [metric-id model-id implicit-id query-action-id]}]
-         (let [resources     (data-apps.tu/resource-files (render metric-id [implicit-id query-action-id]))
+         (let [resources     (resources-for metric-id [implicit-id query-action-id])
                file-of       (fn [eid] (some (fn [path] (when (str/includes? path eid) path)) (keys resources)))
                query-copy    (copy-eid "action" query-action-id)
                model-copy-id #(:id (card-by-eid (copy-eid "model" model-id)))]
@@ -233,16 +222,15 @@
 (deftest changing-the-collection-replaces-the-previous-one-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
-      (let [render-into (fn [eid]
-                          (data-apps.tu/resource-files
-                           (data-apps.tu/render eid [{:entity_id question-eid :name "VenuesList" :query (venues-query)}] [])))
+      (let [resources-in (fn [eid]
+                           (data-apps.tu/build-resources eid [{:entity_id question-eid :name "VenuesList" :query (venues-query)}] []))
             other-eid   (data-apps.tu/collection-entity-id "shop2")]
-        (import! (render-into collection-eid))
+        (import! (resources-in collection-eid))
         (let [previous-id    (app-collection-id)
               card-id        (:id (card-by-eid question-eid))
               search-deletes (atom [])]
           (mt/with-dynamic-fn-redefs [search/delete! (fn [model ids] (swap! search-deletes conj [model ids]))]
-            (import! (render-into other-eid) :collection other-eid))
+            (import! (resources-in other-eid) :collection other-eid))
           (is (nil? (sync-error)))
           (is (not= previous-id (app-collection-id)))
           (is (not (t2/exists? :model/Collection previous-id)))
@@ -251,9 +239,8 @@
           (is (= (app-collection-id) (t2/select-one-fn :collection_id :model/Card card-id))
               "the card moves to the new collection instead of being recreated"))))))
 
-(defn- rendered-question []
-  (data-apps.tu/resource-files
-   (data-apps.tu/render collection-eid [{:entity_id question-eid :name "VenuesList" :query (venues-query)}] [])))
+(defn- question-resources []
+  (data-apps.tu/build-resources collection-eid [{:entity_id question-eid :name "VenuesList" :query (venues-query)}] []))
 
 (defn- question-path [resources]
   (some #(when (str/starts-with? % "cards/") %) (keys resources)))
@@ -264,7 +251,7 @@
 (deftest import-refuses-resources-outside-the-app-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
-      (let [resources (rendered-question)
+      (let [resources (question-resources)
             refused   (fn [resources message]
                         (import! resources)
                         (is (str/includes? (str (sync-error)) message))
@@ -305,20 +292,15 @@
 (deftest import-never-creates-missing-tables-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
-      (let [resources   (edit-question (rendered-question)
+      (let [resources   (edit-question (question-resources)
                                        #(assoc-in % [:dataset_query :stages 0 :source-table]
                                                   [(:name (mt/db)) "PUBLIC" "NO_SUCH_TABLE"]))
-            ;; After rendering, which loads the test database's tables on first use.
+            ;; After building the resources, which loads the test database's tables on first use.
             table-count (t2/count :model/Table)]
         (import! resources)
         (is (str/includes? (str (sync-error)) "NO_SUCH_TABLE"))
         (is (= table-count (t2/count :model/Table)))
         (is (nil? (card-by-eid question-eid)))))))
-
-(deftest ^:parallel derived-entity-id-test
-  (testing "the CLI's offline build check derives the same ID (see `entity-ids.unit.spec.ts`)"
-    (is (= "JIon8kCXvwU9wR4WtI5Aa"
-           (data-app.resource-files/derived-entity-id "action" "shop-cccccccccccccccc" "sourceActionEntity01")))))
 
 (defn- edit-file [resources path-prefix f]
   (let [path (some #(when (str/starts-with? % path-prefix) %) (sort (keys resources)))]
@@ -329,7 +311,7 @@
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card :model/Action]
       (do-with-sources!
        (fn [{:keys [metric-id implicit-id]}]
-         (let [resources (data-apps.tu/resource-files (render metric-id [implicit-id]))
+         (let [resources (resources-for metric-id [implicit-id])
                refused   (fn [resources message]
                            (import! resources)
                            (is (str/includes? (str (sync-error)) message))
@@ -361,7 +343,7 @@
 (deftest import-refuses-a-collection-in-the-trash-or-owned-elsewhere-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
-      (let [resources (rendered-question)]
+      (let [resources (question-resources)]
         (testing "a collection archived in its file"
           (import! (edit-file resources "collection.yaml" #(assoc % :archived true)))
           (is (str/includes? (str (sync-error)) "must be a plain root collection that is not remote-synced or archived"))
@@ -391,7 +373,7 @@
 (deftest renaming-an-app-directory-keeps-its-resources-in-one-pull-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
-      (let [resources (rendered-question)
+      (let [resources (question-resources)
             files     (fn [slug]
                         (data-apps.tu/app-files slug {:name "Shop" :path "index.js" :bundle "B"
                                                       :collection collection-eid :resources resources}))]
@@ -405,7 +387,7 @@
 (deftest import-refuses-out-of-place-card-files-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
-      (let [resources (rendered-question)
+      (let [resources (question-resources)
             refused   (fn [resources message]
                         (import! resources)
                         (is (str/includes? (str (sync-error)) message))
@@ -419,7 +401,8 @@
           (refused (assoc resources "cards/copy.yaml" (get resources (question-path resources)))
                    (str "Card " question-eid " is defined by more than one file")))
         (testing "no collection file"
-          (refused (dissoc resources "collection.yaml") "The app's resource collection is missing."))
+          (refused (dissoc resources "collection.yaml")
+                   "The app's resource collection is missing. Write it to resources/collection.yaml and commit it."))
         (testing "a file in a resource directory that isn't YAML"
           (refused (assoc resources "cards/notes.txt" "notes") "cards/notes.txt is not a YAML file."))
         (testing "a file that doesn't parse"
@@ -428,7 +411,7 @@
 (deftest import-ignores-hidden-files-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
-      (import! (assoc (rendered-question) "cards/.DS_Store" "not yaml"))
+      (import! (assoc (question-resources) "cards/.DS_Store" "not yaml"))
       (is (nil? (sync-error)))
       (is (some? (card-by-eid question-eid))))))
 
@@ -436,13 +419,13 @@
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
       (let [field-count (t2/count :model/Field)
-            resources   (data-apps.tu/resource-files
-                         (data-apps.tu/render collection-eid
-                                              [{:entity_id question-eid
-                                                :name      "VenueNames"
-                                                :query     {:stages [{:source {:type "table" :id (mt/id :venues)}
-                                                                      :fields [{:type "column" :name "NAME" :tableId (mt/id :venues)}]}]}}]
-                                              []))]
+            resources   (data-apps.tu/build-resources
+                         collection-eid
+                         [{:entity_id question-eid
+                           :name      "VenueNames"
+                           :query     {:stages [{:source {:type "table" :id (mt/id :venues)}
+                                                 :fields [{:type "column" :name "NAME" :tableId (mt/id :venues)}]}]}}]
+                         [])]
         (import! (edit-question resources #(walk/postwalk-replace {"NAME" "NO_SUCH_FIELD"} %)))
         (is (str/includes? (str (sync-error)) "NO_SUCH_FIELD"))
         (is (= field-count (t2/count :model/Field)))
@@ -451,7 +434,7 @@
 (deftest a-pull-that-only-changes-resources-counts-as-a-change-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
-      (let [resources (rendered-question)]
+      (let [resources (question-resources)]
         (import! resources)
         (is (=? {:changed 1} (import! (edit-question resources #(assoc % :name "Renamed")))))
         (is (= "Renamed" (:name (card-by-eid question-eid))))))))

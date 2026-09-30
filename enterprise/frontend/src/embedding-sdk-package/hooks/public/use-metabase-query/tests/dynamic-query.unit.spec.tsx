@@ -39,7 +39,9 @@ describe("an unsynchronized table source", () => {
 
     await expect(
       resolveDatasetQueryInBundle(createMockStore())(UNSYNCHRONIZED_QUERY),
-    ).rejects.toThrow("has not been synchronized");
+    ).rejects.toThrow(
+      "This query has no saved question. Write it to the app's `resources/cards/`",
+    );
   });
 
   it("still runs in the dev preview, before the first sync", async () => {

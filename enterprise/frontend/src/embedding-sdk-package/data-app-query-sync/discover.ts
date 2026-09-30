@@ -10,7 +10,7 @@ import {
   type QuerySource,
   findDefinitionSources,
 } from "./ast/query-source";
-import { canonicalJson, getQueryFingerprint } from "./canonical";
+import { canonicalJson } from "./canonical";
 import { isEntityId } from "./entity-ids";
 import { isPositiveInteger, isRecord } from "./guards";
 import { getRelativeDefinitionLocation } from "./messages";
@@ -64,8 +64,8 @@ function generatedEntityId(value: unknown, location: string, idKey: string) {
 }
 
 /**
- * Evaluates every definition of `kind`, proving each one is deterministic so a
- * generated ID always describes the same authored value.
+ * Evaluates every definition of `kind`, proving each one is deterministic so the
+ * resource written from it keeps describing it.
  */
 async function evaluateDefinitions(
   appRoot: string,
@@ -123,13 +123,11 @@ async function evaluateDefinitions(
   return evaluated;
 }
 
-/**
- * Rejects two definitions claiming the same ID, which would otherwise let one
- * copied definition silently take ownership of another's Metabase entity.
- */
+/** Rejects two definitions claiming the same ID, as a copied definition would. */
 function assertUniqueIds(
   entries: Array<{ id: number | string | undefined; location: string }>,
   subject: string,
+  fix: string,
 ) {
   const byId = new Map<number | string, string[]>();
 
@@ -142,7 +140,7 @@ function assertUniqueIds(
   for (const [id, locations] of byId) {
     if (locations.length > 1) {
       throw new Error(
-        `${subject} ${id} is referenced by ${locations.join(", ")}. Remove the ID from the copied definition and sync again.`,
+        `${subject} ${id} is referenced by ${locations.join(", ")}. ${fix}`,
       );
     }
   }
@@ -162,7 +160,6 @@ export async function discoverQueries(
       getRelativeDefinitionLocation(appRoot, { filePath, exportName }),
       QUERY_DEFINITIONS.idKey,
     ),
-    hash: getQueryFingerprint(exportName, value),
   }));
 
   assertUniqueIds(
@@ -171,6 +168,7 @@ export async function discoverQueries(
       location: getRelativeDefinitionLocation(appRoot, query),
     })),
     "Saved question",
+    "Give each definition its own saved question.",
   );
 
   return discovered;
@@ -197,15 +195,13 @@ export async function discoverActions(
     return {
       exportName,
       filePath,
+      action,
       copiedActionEntityId: generatedEntityId(
         value[ACTION_DEFINITIONS.idKey],
         location,
         ACTION_DEFINITIONS.idKey,
       ),
       sourceActionId: action.id,
-      sourceActionEntityId: isEntityId(action.entityId)
-        ? action.entityId
-        : undefined,
     };
   });
 
@@ -215,13 +211,15 @@ export async function discoverActions(
       location: getRelativeDefinitionLocation(appRoot, action),
     })),
     "Action",
+    "Declare each action once.",
   );
   assertUniqueIds(
     discovered.map((action) => ({
       id: action.copiedActionEntityId,
       location: getRelativeDefinitionLocation(appRoot, action),
     })),
-    "Generated action",
+    "Copied action",
+    "Give each definition its own copy.",
   );
 
   return discovered;

@@ -1,10 +1,3 @@
-import fs from "node:fs";
-
-import {
-  ACTION_DEFINITIONS,
-  QUERY_DEFINITIONS,
-  injectGeneratedId,
-} from "../ast/query-source";
 import { discoverActions, discoverQueries } from "../discover";
 
 import {
@@ -15,10 +8,7 @@ import {
 } from "./setup";
 
 const QUESTION_10 = "questionEntityId00010";
-const QUESTION_20 = "questionEntityId00020";
-const QUESTION_30 = "questionEntityId00030";
 const ACTION_91 = "actionEntityId0000091";
-const ACTION_92 = "actionEntityId0000092";
 
 describe("query discovery", () => {
   setupResourceSyncTests();
@@ -34,12 +24,11 @@ describe("query discovery", () => {
       expect.objectContaining({
         exportName: "Orders",
         savedQuestionEntityId: QUESTION_10,
-        hash: expect.stringMatching(/^v1:sha256:[a-f0-9]{64}$/),
       }),
     ]);
   });
 
-  it("rejects copied saved question IDs", async () => {
+  it("rejects a saved question ID two definitions share", async () => {
     const appRoot = makeApp();
 
     writeQuery(
@@ -53,7 +42,7 @@ describe("query discovery", () => {
     );
   });
 
-  it("rejects a hand-edited saved question ID", async () => {
+  it("rejects an invalid saved question ID", async () => {
     const appRoot = makeApp();
 
     writeQuery(
@@ -64,49 +53,6 @@ describe("query discovery", () => {
     await expect(discoverQueries(appRoot)).rejects.toThrow(
       "has an invalid savedQuestionEntityId",
     );
-  });
-
-  it("replaces a quoted saved question ID", async () => {
-    const appRoot = makeApp();
-    const filePath = writeQuery(
-      appRoot,
-      `export const Orders = defineQuery({ "savedQuestionEntityId": "${QUESTION_10}", source: { type: "table", id: 1 } });`,
-    );
-    const [query] = await discoverQueries(appRoot);
-
-    injectGeneratedId(query, QUERY_DEFINITIONS, QUESTION_20);
-
-    const contents = fs.readFileSync(filePath, "utf8");
-    expect(contents).toContain(`savedQuestionEntityId: "${QUESTION_20}"`);
-    expect(contents).not.toContain(QUESTION_10);
-  });
-
-  it.each([
-    ["a shorthand ID", "savedQuestionEntityId"],
-    ["a spread ID", "...defaults"],
-    [
-      "an explicit ID followed by a spread",
-      `savedQuestionEntityId: "${QUESTION_10}", ...defaults`,
-    ],
-  ])("reuses the generated query ID instead of %s", async (_, properties) => {
-    const appRoot = makeApp();
-
-    writeQuery(
-      appRoot,
-      `const savedQuestionEntityId = "${QUESTION_10}";
-       const defaults = { savedQuestionEntityId };
-       export const Orders = defineQuery({ ${properties}, source: { type: "table", id: 1 } });`,
-    );
-
-    const [query] = await discoverQueries(appRoot);
-    injectGeneratedId(query, QUERY_DEFINITIONS, QUESTION_20);
-
-    const [updatedQuery] = await discoverQueries(appRoot);
-    expect(updatedQuery.savedQuestionEntityId).toBe(QUESTION_20);
-    injectGeneratedId(updatedQuery, QUERY_DEFINITIONS, QUESTION_30);
-
-    const [recoveredQuery] = await discoverQueries(appRoot);
-    expect(recoveredQuery.savedQuestionEntityId).toBe(QUESTION_30);
   });
 });
 
@@ -126,33 +72,15 @@ describe("action discovery", () => {
       expect.objectContaining({
         exportName: "Create",
         sourceActionId: 51,
-        sourceActionEntityId: "sourceActionEntity051",
+        action: { id: 51, entityId: "sourceActionEntity051", parameters: [] },
         copiedActionEntityId: ACTION_91,
       }),
       expect.objectContaining({
         exportName: "Update",
         sourceActionId: 52,
-        sourceActionEntityId: undefined,
         copiedActionEntityId: undefined,
       }),
     ]);
-  });
-
-  it("reuses the generated action ID instead of shorthand and spread IDs", async () => {
-    const appRoot = makeApp();
-
-    writeAction(
-      appRoot,
-      `const copiedActionEntityId = "${ACTION_91}";
-       const defaults = { copiedActionEntityId };
-       export const Create = defineAction({ copiedActionEntityId, ...defaults, action: { id: 51, parameters: [] } });`,
-    );
-
-    const [action] = await discoverActions(appRoot);
-    injectGeneratedId(action, ACTION_DEFINITIONS, ACTION_92);
-
-    const [updatedAction] = await discoverActions(appRoot);
-    expect(updatedAction.copiedActionEntityId).toBe(ACTION_92);
   });
 
   it("rejects two definitions claiming the same source action", async () => {
@@ -165,11 +93,11 @@ describe("action discovery", () => {
     );
 
     await expect(discoverActions(appRoot)).rejects.toThrow(
-      "Action 51 is referenced by",
+      /Action 51 is referenced by .*\. Declare each action once\./,
     );
   });
 
-  it("rejects a copied definition that carries another's generated ID", async () => {
+  it("rejects a copied definition that carries another's copied action ID", async () => {
     const appRoot = makeApp();
 
     writeAction(
@@ -179,7 +107,7 @@ describe("action discovery", () => {
     );
 
     await expect(discoverActions(appRoot)).rejects.toThrow(
-      `Generated action ${ACTION_91} is referenced by`,
+      `Copied action ${ACTION_91} is referenced by`,
     );
   });
 
@@ -196,7 +124,7 @@ describe("action discovery", () => {
     );
   });
 
-  it("rejects a hand-edited generated ID", async () => {
+  it("rejects an invalid copied action ID", async () => {
     const appRoot = makeApp();
 
     writeAction(

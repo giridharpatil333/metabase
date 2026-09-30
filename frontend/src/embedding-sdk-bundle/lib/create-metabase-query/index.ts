@@ -79,7 +79,7 @@ async function toSourceInput(
   if (entityId === null || entityId === undefined) {
     // An app's viewers can only read the published cards, so a table source 403s.
     throw new Error(
-      "This query has not been synchronized. Define it with `defineQuery(...)` in `queries/`, run `npm run sync-resources`, commit its output, and rebuild.",
+      "This query has no saved question. Write it to the app's `resources/cards/`, set its `savedQuestionEntityId` in `defineQuery(...)` in `queries/`, run `npm run check-resources`, commit, and rebuild.",
     );
   }
 
@@ -92,7 +92,7 @@ async function toSourceInput(
 }
 
 /**
- * The published card is addressed by the entity ID synchronization generated,
+ * The published card is addressed by the entity ID its resource file gives it,
  * which Metabase only knows once the repository is imported. Query metadata and
  * the query itself address cards by numeric ID.
  */

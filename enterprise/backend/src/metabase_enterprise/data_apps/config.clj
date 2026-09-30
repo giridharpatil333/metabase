@@ -6,7 +6,7 @@
      description: Pipeline …    # optional — one line on what the app does
      version: 1                 # optional — data app contract version, 1 when absent
      path: dist/index.js        # bundle path, relative to this app's directory
-     collection: <entity_id>    # the app's resource collection, written by `npm run sync-resources`
+     collection: <entity_id>    # the app's resource collection, in resources/collection.yaml
      allowed_hosts:             # optional — origins the sandboxed bundle may fetch/XHR
        - https://api.example.com
        - https://*.internal.acme.com"
@@ -150,7 +150,7 @@
 (defn- parse-collection
   [raw ^String dir]
   (when-not (serdes/entity-id? raw)
-    (throw (ex-info (tru "{0}/{1}: \"collection\" must be the entity ID of the app''s resource collection. Run `npm run sync-resources` to create it."
+    (throw (ex-info (tru "{0}/{1}: \"collection\" must be the entity ID of the app''s resource collection in resources/collection.yaml."
                          dir config-file-name)
                     {:status-code 400})))
   raw)

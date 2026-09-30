@@ -64,5 +64,5 @@ await build({
   // `dataAppConfig` nests its plugins in an array, so flatten before filtering.
   plugins: dataAppConfig()
     .plugins.flat(Infinity)
-    .filter((plugin) => plugin?.name !== "metabase-resource-sync-check"),
+    .filter((plugin) => plugin?.name !== "metabase-resource-check"),
 });

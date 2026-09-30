@@ -1,6 +1,7 @@
 import type { Command } from "commander";
 
-import { syncResourcesAction } from "../actions/sync-resources";
+import { checkResources } from "../../data-app-query-sync/check";
+import { printDefinitions } from "../../data-app-query-sync/print";
 
 export function addDataAppsCommands(program: Command) {
   const dataAppsCommand = program
@@ -8,10 +9,26 @@ export function addDataAppsCommands(program: Command) {
     .description("manage Metabase data apps");
 
   dataAppsCommand
-    .command("sync-resources")
+    .command("print-definitions")
     .description(
-      "render data app query and action definitions into its resources/ directory",
+      "print the data app's evaluated query and action definitions as JSON",
+    )
+    .argument("[file]", "only the definitions in this file")
+    .option("--app-root <path>", "data app directory", process.cwd())
+    .action(
+      async (file: string | undefined, { appRoot }: { appRoot: string }) => {
+        process.stdout.write(`${await printDefinitions(appRoot, file)}\n`);
+      },
+    );
+
+  dataAppsCommand
+    .command("check-resources")
+    .description(
+      "check that the data app's resources/ directory backs its query and action definitions",
     )
     .option("--app-root <path>", "data app directory", process.cwd())
-    .action(({ appRoot }: { appRoot: string }) => syncResourcesAction(appRoot));
+    .action(async ({ appRoot }: { appRoot: string }) => {
+      await checkResources(appRoot);
+      process.stdout.write("resources/ backs every definition.\n");
+    });
 }

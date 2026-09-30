@@ -1,15 +1,15 @@
 import { Command } from "commander";
 
-import { checkResources } from "../../data-app-query-sync/check";
-import { printDefinitions } from "../../data-app-query-sync/print";
+import { checkResources } from "../../data-app-resources/check";
+import { printDefinitions } from "../../data-app-resources/print";
 
 import { addDataAppsCommands } from "./data-apps";
 
-jest.mock("../../data-app-query-sync/check", () => ({
+jest.mock("../../data-app-resources/check", () => ({
   checkResources: jest.fn(),
 }));
 
-jest.mock("../../data-app-query-sync/print", () => ({
+jest.mock("../../data-app-resources/print", () => ({
   printDefinitions: jest.fn().mockResolvedValue('{"queries":[],"actions":[]}'),
 }));
 

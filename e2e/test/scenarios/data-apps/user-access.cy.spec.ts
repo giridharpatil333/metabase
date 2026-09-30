@@ -441,7 +441,7 @@ const userRow = (email: string) => H.main().findByText(email).closest("tr");
 
 type TableReference = [database: string, schema: string | null, table: string];
 
-/** A saved question on `table` in the `good` app's resource collection, as `sync-resources` renders one. */
+/** A saved question on `table` in the `good` app's resource collection, as an author writes one. */
 function questionFile(
   entityId: string,
   [database, schema, table]: TableReference,

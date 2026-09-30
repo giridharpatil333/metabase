@@ -2,12 +2,7 @@ import path from "node:path";
 
 import { printDefinitions } from "../print";
 
-import {
-  makeApp,
-  setupResourceSyncTests,
-  writeAction,
-  writeQuery,
-} from "./setup";
+import { makeApp, setupResourceTests, writeAction, writeQuery } from "./setup";
 
 const QUESTION = "questionEntityId00010";
 
@@ -25,7 +20,7 @@ function appWithDefinitions() {
 }
 
 describe("printing definitions", () => {
-  setupResourceSyncTests();
+  setupResourceTests();
 
   it("prints every evaluated definition with its ID", async () => {
     const appRoot = appWithDefinitions();

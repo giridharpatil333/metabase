@@ -46,7 +46,7 @@ describe("a table source without a saved question", () => {
     );
   });
 
-  it("still runs in the dev preview, before the first sync", async () => {
+  it("still runs in the dev preview, before the app's resources exist", async () => {
     EMBEDDING_SDK_CONFIG.isDataApp = true;
     EMBEDDING_SDK_CONFIG.isDataAppDev = true;
 

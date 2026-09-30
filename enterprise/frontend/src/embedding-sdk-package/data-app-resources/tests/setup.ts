@@ -4,7 +4,7 @@ import path from "node:path";
 
 import { dump as dumpYaml } from "js-yaml";
 
-export function setupResourceSyncTests(): void {
+export function setupResourceTests(): void {
   const repoRoots: string[] = [];
 
   afterEach(() => {
@@ -33,7 +33,7 @@ export function makeApp({
 }: { slug?: string; sibling?: string } = {}) {
   const repoRoot = sibling
     ? path.dirname(path.dirname(sibling))
-    : fs.mkdtempSync(path.join(os.tmpdir(), "data-app-query-sync-"));
+    : fs.mkdtempSync(path.join(os.tmpdir(), "data-app-resources-"));
 
   if (!sibling) {
     trackedRepoRoots?.push(repoRoot);

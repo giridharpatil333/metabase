@@ -5,7 +5,7 @@ import { checkResources } from "../check";
 
 import {
   makeApp,
-  setupResourceSyncTests,
+  setupResourceTests,
   writeAction,
   writeQuery,
   writeResource,
@@ -48,7 +48,7 @@ function checkedApp() {
 }
 
 describe("resource check", () => {
-  setupResourceSyncTests();
+  setupResourceTests();
 
   it("passes when every definition's file exists and nothing is left over", async () => {
     await expect(checkResources(checkedApp())).resolves.toBeUndefined();

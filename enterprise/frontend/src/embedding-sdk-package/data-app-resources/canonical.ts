@@ -1,8 +1,8 @@
-/** Serializes a query with stable object-key ordering. */
+/** Serializes a definition with stable object-key ordering. */
 export const canonicalJson = (value: unknown): string =>
   JSON.stringify(canonicalize(value));
 
-/** Validates a query value and recursively sorts object keys. */
+/** Validates a definition value and recursively sorts object keys. */
 function canonicalize(value: unknown, seen = new Set<object>()): unknown {
   const type = typeof value;
 
@@ -12,25 +12,25 @@ function canonicalize(value: unknown, seen = new Set<object>()): unknown {
 
   if (type === "number") {
     if (!Number.isFinite(value)) {
-      throw new Error("Query definitions cannot contain non-finite numbers.");
+      throw new Error("Definitions cannot contain non-finite numbers.");
     }
 
     return value;
   }
 
   if (typeof value !== "object") {
-    throw new Error(`Query definitions cannot contain ${type} values.`);
+    throw new Error(`Definitions cannot contain ${type} values.`);
   }
 
   if (seen.has(value)) {
-    throw new Error("Query definitions cannot contain circular references.");
+    throw new Error("Definitions cannot contain circular references.");
   }
 
   if (!Array.isArray(value)) {
     const prototype = Object.getPrototypeOf(value);
 
     if (prototype !== Object.prototype && prototype !== null) {
-      throw new Error("Query definitions must contain only plain objects.");
+      throw new Error("Definitions must contain only plain objects.");
     }
   }
 

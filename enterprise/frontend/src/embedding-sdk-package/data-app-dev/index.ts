@@ -8,7 +8,7 @@ import {
   loadEnv,
 } from "vite";
 
-import { checkResources } from "../data-app-query-sync/check";
+import { checkResources } from "../data-app-resources/check";
 
 import { dataAppBuildPlugins, dataAppLibBuild } from "./config/build-config";
 import { getDataAppDefine } from "./config/define";

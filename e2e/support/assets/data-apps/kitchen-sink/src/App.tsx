@@ -199,8 +199,8 @@ function NativeQueryPage() {
 
 function Actions() {
   const { actionId, actionEntityId, actionParams } = getTestEnv();
-  // A data app names its actions by definition. Nothing synchronizes here, so
-  // the copy the definition points at is the authored action itself.
+  // A data app names its actions by definition. This fixture has no
+  // `resources/`, so the copy the definition points at is the authored action.
   const action = useAction(
     actionId
       ? defineAction({

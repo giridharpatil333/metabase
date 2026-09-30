@@ -1,7 +1,7 @@
 import type { Command } from "commander";
 
-import { checkResources } from "../../data-app-query-sync/check";
-import { printDefinitions } from "../../data-app-query-sync/print";
+import { checkResources } from "../../data-app-resources/check";
+import { printDefinitions } from "../../data-app-resources/print";
 
 export function addDataAppsCommands(program: Command) {
   const dataAppsCommand = program

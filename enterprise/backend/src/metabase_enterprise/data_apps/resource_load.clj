@@ -56,15 +56,16 @@
       (name t))))
 
 (defn- action-children-problems
-  "Serdes loads an action's query and HTTP rows whatever its type, so a file must carry exactly the ones its type uses."
+  "Serdes loads an action's implicit, query, and HTTP rows whatever its type, so a file must carry exactly the one its
+  type uses."
   [{:keys [path entity]}]
-  (let [counts   (update-vals (select-keys entity [:query :http]) count)
+  (let [counts   (update-vals (select-keys entity [:implicit :query :http]) count)
         expected (case (type-name entity)
-                   "implicit" {}
+                   "implicit" {:implicit 1}
                    "query"    {:query 1}
                    nil)]
     (when (and expected (not= expected (into {} (remove (comp zero? val)) counts)))
-      [(tru "{0} must carry exactly the query rows its action type uses, and no HTTP request." path)])))
+      [(tru "{0} must carry exactly the row its action type uses, and no HTTP request." path)])))
 
 (defn- parameter-source-problems
   "An action's parameters can take their values from a card, which its dependencies don't include."

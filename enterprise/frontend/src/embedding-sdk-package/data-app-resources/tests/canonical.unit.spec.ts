@@ -6,7 +6,7 @@ describe("query canonicalization", () => {
     expect(canonicalJson({ ä: 2, z: 1 })).toBe('{"z":1,"ä":2}');
   });
 
-  it("rejects non-serializable query definitions", () => {
+  it("rejects non-serializable definitions", () => {
     expect(() => canonicalJson({ value: undefined })).toThrow(
       "cannot contain undefined values",
     );

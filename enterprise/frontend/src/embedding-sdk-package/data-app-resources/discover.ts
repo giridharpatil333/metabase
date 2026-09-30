@@ -6,17 +6,17 @@ import { build } from "esbuild";
 import {
   ACTION_DEFINITIONS,
   type DefinitionKind,
+  type DefinitionSource,
   QUERY_DEFINITIONS,
-  type QuerySource,
   findDefinitionSources,
-} from "./ast/query-source";
+} from "./ast/definition-source";
 import { canonicalJson } from "./canonical";
 import { isEntityId } from "./entity-ids";
 import { isPositiveInteger, isRecord } from "./guards";
 import { getRelativeDefinitionLocation } from "./messages";
 import type { DiscoveredAction, DiscoveredQuery } from "./types";
 
-interface EvaluatedDefinition extends QuerySource {
+interface EvaluatedDefinition extends DefinitionSource {
   value: Record<string, unknown>;
 }
 
@@ -71,7 +71,7 @@ async function evaluateDefinitions(
   appRoot: string,
   kind: DefinitionKind,
 ): Promise<EvaluatedDefinition[]> {
-  const sourcesByFile = new Map<string, QuerySource[]>();
+  const sourcesByFile = new Map<string, DefinitionSource[]>();
 
   for (const source of findDefinitionSources(appRoot, kind)) {
     sourcesByFile.set(source.filePath, [

@@ -5,7 +5,7 @@ import ts from "typescript";
 
 import { SDK_PACKAGE_NAME } from "embedding-sdk-package/cli/constants/config";
 
-export interface QuerySource {
+export interface DefinitionSource {
   exportName: string;
   filePath: string;
 }
@@ -35,7 +35,7 @@ export const ACTION_DEFINITIONS: DefinitionKind = {
 
 const DATA_APP_MODULE = SDK_PACKAGE_NAME + "/data-app";
 
-const QUERY_FILE_EXTENSIONS = [
+const DEFINITION_FILE_EXTENSIONS = [
   ".js",
   ".jsx",
   ".ts",
@@ -49,13 +49,13 @@ const QUERY_FILE_EXTENSIONS = [
 export function findDefinitionSources(
   appRoot: string,
   kind: DefinitionKind,
-): QuerySource[] {
-  return listQueryFiles(path.join(appRoot, kind.directory)).flatMap(
+): DefinitionSource[] {
+  return listDefinitionFiles(path.join(appRoot, kind.directory)).flatMap(
     (filePath) => inspectFile(filePath, kind),
   );
 }
 
-function listQueryFiles(directory: string): string[] {
+function listDefinitionFiles(directory: string): string[] {
   if (!fs.existsSync(directory)) {
     return [];
   }
@@ -64,14 +64,14 @@ function listQueryFiles(directory: string): string[] {
     .readdirSync(directory, { withFileTypes: true })
     .flatMap((entry) => {
       const itemPath = path.join(directory, entry.name);
-      return entry.isDirectory() ? listQueryFiles(itemPath) : [itemPath];
+      return entry.isDirectory() ? listDefinitionFiles(itemPath) : [itemPath];
     })
-    .filter(isQueryFile)
+    .filter(isDefinitionFile)
     .sort();
 }
 
-const isQueryFile = (filePath: string) =>
-  QUERY_FILE_EXTENSIONS.some((extension) => filePath.endsWith(extension));
+const isDefinitionFile = (filePath: string) =>
+  DEFINITION_FILE_EXTENSIONS.some((extension) => filePath.endsWith(extension));
 
 const hasExportModifier = (node: ts.Node) =>
   ts.canHaveModifiers(node)
@@ -145,7 +145,10 @@ const isFactoryCall = (
   ts.isIdentifier(node.expression) &&
   names.has(node.expression.text);
 
-function inspectFile(filePath: string, kind: DefinitionKind): QuerySource[] {
+function inspectFile(
+  filePath: string,
+  kind: DefinitionKind,
+): DefinitionSource[] {
   const contents = fs.readFileSync(filePath, "utf8");
 
   const sourceFile = ts.createSourceFile(
@@ -172,7 +175,7 @@ function inspectFile(filePath: string, kind: DefinitionKind): QuerySource[] {
     }
   }
 
-  const definitionSources: QuerySource[] = [];
+  const definitionSources: DefinitionSource[] = [];
 
   const visit = (node: ts.Node) => {
     if (isFactoryCall(node, factoryNames)) {

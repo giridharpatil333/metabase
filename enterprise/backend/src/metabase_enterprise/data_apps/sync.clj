@@ -284,8 +284,8 @@
    the just-imported `snapshot` (see [[import-from-snapshot!]] for its shape).
    Never throws, so it can't break the surrounding remote-sync import: a thrown
    failure is logged and swallowed, and a malformed `data_app.yaml` is logged and
-   its app simply doesn't appear. Returns the [[import-from-snapshot!]] result, or
-   nil if the sync threw.
+   its app simply doesn't appear. `opts` are [[import-from-snapshot!]]'s. Returns
+   its result, or nil if the sync threw.
 
    A no-op returning nil when the `:data-apps` feature is absent: without
    it an instance behaves exactly as if data apps did not exist — no rows,

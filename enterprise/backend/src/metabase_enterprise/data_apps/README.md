@@ -42,9 +42,9 @@ Data apps have no sync of their own; they ride the remote-sync import. Every pul
 and calls `data-apps.sync/sync-from-snapshot!`.
 
 ```
-remote-sync import  →  snapshot  →  sync-from-snapshot!  →  discover configs
-                                                         →  materialize each app, loading its resources/
-                                                         →  prune apps absent from the repo
+remote-sync import  ->  snapshot  ->  sync-from-snapshot!  ->  discover configs
+                                                           ->  prune apps absent from the repo
+                                                           ->  materialize each app, loading its resources/
 ```
 
 `data_apps/` is deliberately **not** a serdes path, so apps are invisible to the serialization

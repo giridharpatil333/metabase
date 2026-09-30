@@ -340,10 +340,22 @@
                                                                     :database (:name (mt/db))
                                                                     :stages   [{:lib/type "mbql.stage/native"
                                                                                 :native   "DELETE FROM venues"}]}}]))
-                      "must carry exactly the query rows its action type uses"))
+                      "must carry exactly the row its action type uses"))
+           (testing "an implicit action without its implicit row"
+             (refused (edit-file resources "actions/" #(assoc % :implicit []))
+                      "must carry exactly the row its action type uses"))
+           (testing "a query action that still carries an implicit row"
+             (refused (edit-file resources "actions/"
+                                 #(assoc % :type "query"
+                                         :query [{:database_id (:name (mt/db))
+                                                  :dataset_query {:lib/type "mbql/query"
+                                                                  :database (:name (mt/db))
+                                                                  :stages   [{:lib/type "mbql.stage/native"
+                                                                              :native   "UPDATE venues SET name = 'x'"}]}}]))
+                      "must carry exactly the row its action type uses"))
            (testing "an action carrying an HTTP request"
              (refused (edit-file resources "actions/" #(assoc % :http [{:template {:method "GET" :url "https://example.com"}}]))
-                      "must carry exactly the query rows its action type uses"))
+                      "must carry exactly the row its action type uses"))
            (testing "an HTTP action"
              (refused (edit-file resources "actions/" #(assoc % :type "http"))
                       "must be an implicit or query action"))

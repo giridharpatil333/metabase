@@ -1,17 +1,12 @@
 import { discoverActions, discoverQueries } from "../discover";
 
-import {
-  makeApp,
-  setupResourceSyncTests,
-  writeAction,
-  writeQuery,
-} from "./setup";
+import { makeApp, setupResourceTests, writeAction, writeQuery } from "./setup";
 
 const QUESTION_10 = "questionEntityId00010";
 const ACTION_91 = "actionEntityId0000091";
 
 describe("query discovery", () => {
-  setupResourceSyncTests();
+  setupResourceTests();
 
   it("discovers a direct named definition", async () => {
     const appRoot = makeApp();
@@ -57,7 +52,7 @@ describe("query discovery", () => {
 });
 
 describe("action discovery", () => {
-  setupResourceSyncTests();
+  setupResourceTests();
 
   it("discovers named definitions and the action each references", async () => {
     const appRoot = makeApp();

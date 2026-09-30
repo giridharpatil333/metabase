@@ -1,3 +1,5 @@
+import yaml from "js-yaml";
+
 import { USER_GROUPS } from "e2e/support/cypress_data";
 import * as Urls from "metabase/urls/data-apps";
 import type {
@@ -228,19 +230,14 @@ export function moveDataAppModelToCollection({
 
 /**
  * The dev host app is a real vite data app with the published SDK installed, so
- * synchronizing it exercises the package an author actually consumes rather than
- * the stub the scratch fixture provides.
+ * its CLI and build are the ones an author actually runs.
  */
 export const dataAppHostAppRoot = () =>
   `${Cypress.config("projectRoot")}/${DATA_APP_DEV_HOST_APP_DIR}`;
 
-const actionDeclarationsFile = (appRoot: string) =>
-  `${appRoot}/actions/orders.action.ts`;
-
 /**
- * Clears everything synchronization generates in the host app. Both sync specs
- * drive the same checked-in directory, so each has to start from a clean tree —
- * a stray `actions/` would otherwise be discovered by the query spec's sync.
+ * Clears what the resource specs write into the host app. They drive the same
+ * checked-in directory, so each has to start from a clean tree.
  */
 export function resetDataAppHostAppSources() {
   const appRoot = dataAppHostAppRoot();
@@ -250,86 +247,196 @@ export function resetDataAppHostAppSources() {
   });
 }
 
-/** Declares one `defineAction` per source action, as the generated schema names it. */
+const ENTITY_ID_ALPHABET =
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_-";
+
+/** A new entity ID, as `representations generate-entity-id` makes one for an author. */
+export const newEntityId = () =>
+  Array.from(
+    crypto.getRandomValues(new Uint8Array(21)),
+    (byte) => ENTITY_ID_ALPHABET[byte & 63],
+  ).join("");
+
+/** A table as serialized YAML references it: database, schema, and table name. */
+export type PortableTable = [database: string, schema: string, table: string];
+
+type ResourceEntity = Record<string, unknown>;
+
+const serdesMeta = (model: string, entityId: string, label: string) => [
+  { id: entityId, label, model },
+];
+
+/** The app's `resources/collection.yaml`. */
+export const resourceCollection = (
+  entityId: string,
+  name: string,
+): ResourceEntity => ({
+  name,
+  entity_id: entityId,
+  "serdes/meta": serdesMeta("Collection", entityId, "data_app"),
+});
+
+/**
+ * A card in `resources/cards/`, as an author writes it: a saved question from a
+ * query definition, or a copy of a model or metric from the repository. `stage`
+ * holds the clauses besides the source table.
+ */
+export const resourceCard = ({
+  entityId,
+  name,
+  type,
+  collection,
+  table,
+  stage = {},
+}: {
+  entityId: string;
+  name: string;
+  type: "question" | "model" | "metric";
+  collection: string;
+  table: PortableTable;
+  stage?: ResourceEntity;
+}): ResourceEntity => ({
+  name,
+  type,
+  display: type === "metric" ? "scalar" : "table",
+  entity_id: entityId,
+  collection_id: collection,
+  dataset_query: {
+    "lib/type": "mbql/query",
+    database: table[0],
+    stages: [
+      { "lib/type": "mbql.stage/mbql", "source-table": table, ...stage },
+    ],
+  },
+  visualization_settings: {},
+  "serdes/meta": serdesMeta("Card", entityId, name.toLowerCase()),
+});
+
+/** A copy of an implicit action in `resources/actions/`, on the model copy `model`. */
+export const resourceImplicitAction = ({
+  entityId,
+  name,
+  kind,
+  model,
+}: {
+  entityId: string;
+  name: string;
+  kind: "row/create" | "row/update" | "row/delete";
+  model: string;
+}): ResourceEntity => ({
+  name,
+  type: "implicit",
+  entity_id: entityId,
+  model_id: model,
+  implicit: [{ kind }],
+  query: [],
+  http: [],
+  parameters: [],
+  parameter_mappings: [],
+  "serdes/meta": serdesMeta("Action", entityId, name.toLowerCase()),
+});
+
+const fileName = (entity: ResourceEntity) =>
+  `${String(entity.name).toLowerCase().replace(/\W+/g, "_")}_${String(entity.entity_id)}.yaml`;
+
+/** Writes an app's `resources/` as YAML, replacing what was there. */
+export function writeDataAppResources(
+  appRoot: string,
+  {
+    collection,
+    cards = [],
+    actions = [],
+  }: {
+    collection: ResourceEntity;
+    cards?: ResourceEntity[];
+    actions?: ResourceEntity[];
+  },
+) {
+  const resourcesRoot = `${appRoot}/resources`;
+
+  cy.task("removeDataAppPaths", { paths: [resourcesRoot] });
+
+  return cy.task("writeDataAppFiles", {
+    files: {
+      [`${resourcesRoot}/collection.yaml`]: yaml.dump(collection),
+      ...Object.fromEntries(
+        cards.map((card) => [
+          `${resourcesRoot}/cards/${fileName(card)}`,
+          yaml.dump(card),
+        ]),
+      ),
+      ...Object.fromEntries(
+        actions.map((action) => [
+          `${resourcesRoot}/actions/${fileName(action)}`,
+          yaml.dump(action),
+        ]),
+      ),
+    },
+  });
+}
+
+/** Declares one `defineAction` per action, as the generated schema names it, with the ID of its copy. */
 export function declareDataAppActions(
   appRoot: string,
-  sourceActions: Array<{ id: number; entity_id: string }>,
+  actions: Array<{
+    exportName: string;
+    sourceActionId: number;
+    copiedActionEntityId: string;
+  }>,
 ) {
   return cy.task("writeDataAppFiles", {
     files: {
-      [actionDeclarationsFile(appRoot)]: [
+      [`${appRoot}/actions/orders.action.ts`]: [
         'import { defineAction } from "@metabase/embedding-sdk-react/data-app";',
-        ...sourceActions.map(
-          ({ id, entity_id }) =>
-            `export const Action${id} = defineAction({ action: { id: ${id}, entityId: "${entity_id}", parameters: [] } });`,
+        ...actions.map(
+          ({ exportName, sourceActionId, copiedActionEntityId }) =>
+            `export const ${exportName} = defineAction({ copiedActionEntityId: "${copiedActionEntityId}", action: { id: ${sourceActionId}, parameters: [] } });`,
         ),
       ].join("\n"),
     },
   });
 }
 
-const queryDeclarationsFile = (appRoot: string) =>
-  `${appRoot}/queries/orders.query.ts`;
-
-/** Declares one `defineQuery` per entry, as an app author would. */
+/** Declares one `defineQuery` per entry, as an app author would, with the ID of its saved question. */
 export function declareDataAppQueries(
   appRoot: string,
   declarations: Array<{
     name: string;
     tableId: number;
+    savedQuestionEntityId: string;
     limit?: number;
     metricId?: number;
   }>,
 ) {
   return cy.task("writeDataAppFiles", {
     files: {
-      [queryDeclarationsFile(appRoot)]: [
+      [`${appRoot}/queries/orders.query.ts`]: [
         'import { defineQuery } from "@metabase/embedding-sdk-react/data-app";',
-        ...declarations.map(({ name, tableId, limit, metricId }) => {
-          const clauses = [
-            metricId === undefined
-              ? ""
-              : `, aggregations: [{ type: "metric", id: ${metricId} }]`,
-            limit === undefined ? "" : `, limit: ${limit}`,
-          ].join("");
-          return `export const ${name} = defineQuery({ source: { type: "table", id: ${tableId} }${clauses} });`;
-        }),
+        ...declarations.map(
+          ({ name, tableId, savedQuestionEntityId, limit, metricId }) => {
+            const clauses = [
+              metricId === undefined
+                ? ""
+                : `, aggregations: [{ type: "metric", id: ${metricId} }]`,
+              limit === undefined ? "" : `, limit: ${limit}`,
+            ].join("");
+            return `export const ${name} = defineQuery({ savedQuestionEntityId: "${savedQuestionEntityId}", source: { type: "table", id: ${tableId} }${clauses} });`;
+          },
+        ),
       ].join("\n"),
     },
   });
 }
 
 /**
- * Deletes one declaration in place, so the rest keep the generated IDs
- * synchronization injected — which is what an author removing one does.
- * Splits on the declaration keyword rather than on lines, because an injected
- * ID lands on its own line and makes a declaration span several.
+ * Runs the data app CLI the host app has installed, the one an author runs:
+ * `embedding-sdk-react data-apps <command>`. It never calls Metabase.
  */
-function removeDeclaration(filePath: string, exportName: string) {
-  return cy.task("removeDataAppDeclaration", { filePath, exportName });
-}
-
-export function removeDataAppQueryDeclaration(appRoot: string, name: string) {
-  return removeDeclaration(queryDeclarationsFile(appRoot), name);
-}
-
-export function removeDataAppActionDeclaration(
-  appRoot: string,
-  sourceActionId: number,
-) {
-  return removeDeclaration(
-    actionDeclarationsFile(appRoot),
-    `Action${sourceActionId}`,
+export function runDataAppCli(command: string) {
+  return cy.exec(
+    `cd "${dataAppHostAppRoot()}" && npx --no-install embedding-sdk-react data-apps ${command}`,
+    { failOnNonZeroExit: false, timeout: 60_000 },
   );
-}
-
-/** Runs the real `sync-resources` CLI against the instance under test. */
-export function syncDataAppResources(apiKey: string, appRoot: string) {
-  return cy.task<{ ok: boolean; error: string | null }>("syncDataApp", {
-    appRoot,
-    metabaseUrl: Cypress.config("baseUrl"),
-    apiKey,
-  });
 }
 
 export const copySyncedDataAppsFixture = () =>
@@ -352,16 +459,20 @@ export function pullExampleDataApps() {
 }
 
 /**
- * Delivers what `sync-resources` wrote for the app in `appRoot` the way an author
- * does: commits its `data_app.yaml` and `resources/` to the connected repository
- * and pulls. The bundle is a placeholder, since specs serve the built one through
- * `mockDataApp`. Pass `initializeRepo: false` to publish again into the
- * repository an earlier call set up.
+ * Delivers the app in `appRoot` the way an author does: commits its
+ * `data_app.yaml` and `resources/` to the connected repository and pulls. The
+ * bundle is a placeholder, since specs serve the built one through `mockDataApp`.
+ * Pass `initializeRepo: false` to publish again into the repository an earlier
+ * call set up. Yields the app, whose `sync_error` is expected to be empty unless
+ * `expectSynced` is false.
  */
 export function publishDataApp(
   appRoot: string,
   slug: string,
-  { initializeRepo = true }: { initializeRepo?: boolean } = {},
+  {
+    initializeRepo = true,
+    expectSynced = true,
+  }: { initializeRepo?: boolean; expectSynced?: boolean } = {},
 ) {
   const appDir = `${LOCAL_GIT_PATH}/data_apps/${slug}`;
 
@@ -386,22 +497,18 @@ export function publishDataApp(
   configureGitAndPullChanges("read-write");
 
   return cy.request<DataApp>(`/api/apps/${slug}`).then(({ body: app }) => {
-    expect(app.sync_error, `${slug} synced`).to.be.null;
+    if (expectSynced) {
+      expect(app.sync_error, `${slug} synced`).to.be.null;
+    }
+
+    return cy.wrap(app, { log: false });
   });
 }
 
-export function createDataAppApiKey() {
-  return cy
-    .request<{ unmasked_key: string }>("POST", "/api/api-key", {
-      name: `data-app-sync-e2e-${Date.now()}`,
-      group_id: USER_GROUPS.ADMIN_GROUP,
-    })
-    .then(({ body }) => body.unmasked_key);
-}
-
 /**
- * Runs the host app's own production build. The SDK's `metabase-resource-sync-check`
- * plugin runs on `buildStart`, so this is what refuses to bundle a stale app.
+ * Runs the host app's own production build. The SDK's `metabase-resource-check`
+ * plugin runs on `buildStart`, so this is what refuses to bundle an app whose
+ * `resources/` don't back its definitions.
  */
 export function buildDataAppHostApp() {
   return cy.exec(`cd "${dataAppHostAppRoot()}" && npm run build`, {
@@ -423,7 +530,6 @@ export function dataAppPermissionGroupId(slug: string) {
   });
 }
 
-/** Puts a user in the app's own permission group, as granting app access does. */
 const DATA_APP_DEV_HOST_APP_DIR =
   "e2e/embedding-sdk-host-apps/vite-6-data-app-host-app";
 

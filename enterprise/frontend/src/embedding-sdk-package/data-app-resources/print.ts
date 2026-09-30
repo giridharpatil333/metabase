@@ -1,6 +1,6 @@
 import path from "node:path";
 
-import { QUERY_DEFINITIONS } from "./ast/query-source";
+import { QUERY_DEFINITIONS } from "./ast/definition-source";
 import { discoverActions, discoverQueries } from "./discover";
 
 /**

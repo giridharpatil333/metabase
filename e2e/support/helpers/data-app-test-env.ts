@@ -45,7 +45,8 @@ export type DataAppTestEnv = {
   /**
    * `/query-states` page: a deliberately invalid query (a card that does not
    * exist), so the hook resolves to an `error` state rather than to the refusal
-   * an unsynchronized query would raise; the page also exercises `refetch`.
+   * a query without a saved question would raise; the page also exercises
+   * `refetch`.
    */
   errorQuery?: { source: TableSource; savedQuestionEntityId: string };
   /**
@@ -56,8 +57,8 @@ export type DataAppTestEnv = {
   actionId?: number;
   /**
    * `/actions` page: the entity ID of that action. A deployed app runs the copy
-   * its definition names by entity ID; nothing synchronizes here, so the "copy"
-   * is the action itself.
+   * its definition names by entity ID; this fixture has no `resources/`, so the
+   * "copy" is the action itself.
    */
   actionEntityId?: string;
   /** `/actions` page: the parameters the page passes to `execute()`. */

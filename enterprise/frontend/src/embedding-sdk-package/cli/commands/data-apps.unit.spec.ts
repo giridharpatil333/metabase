@@ -1,17 +1,16 @@
 import { Command } from "commander";
 
-import { checkResources } from "../../data-app-resources/check";
-import { printDefinitions } from "../../data-app-resources/print";
+import {
+  makeApp,
+  setupResourceTests,
+  writeAction,
+  writeQuery,
+  writeResource,
+} from "../../data-app-resources/tests/setup";
 
 import { addDataAppsCommands } from "./data-apps";
 
-jest.mock("../../data-app-resources/check", () => ({
-  checkResources: jest.fn(),
-}));
-
-jest.mock("../../data-app-resources/print", () => ({
-  printDefinitions: jest.fn().mockResolvedValue('{"queries":[],"actions":[]}'),
-}));
+const QUESTION = "questionEntityId00010";
 
 async function run(...args: string[]) {
   const program = new Command();
@@ -19,50 +18,73 @@ async function run(...args: string[]) {
   await program.parseAsync(["node", "cli", "data-apps", ...args]);
 }
 
+function appWithQuery() {
+  const appRoot = makeApp();
+  writeQuery(
+    appRoot,
+    `export const Orders = defineQuery({ savedQuestionEntityId: "${QUESTION}", source: { type: "table", id: 1 } });`,
+  );
+  return appRoot;
+}
+
 describe("data app commands", () => {
+  setupResourceTests();
+
+  let stdout: jest.SpyInstance;
+
   beforeEach(() => {
-    jest.spyOn(process.stdout, "write").mockImplementation(() => true);
+    stdout = jest.spyOn(process.stdout, "write").mockImplementation(() => true);
   });
 
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
+  const printed = () =>
+    stdout.mock.calls.map(([chunk]) => String(chunk)).join("");
 
-  it("checks the resources of the requested app root", async () => {
-    await run("check-resources", "--app-root", "data_apps/orders");
-
-    expect(checkResources).toHaveBeenCalledWith("data_apps/orders");
-    expect(process.stdout.write).toHaveBeenCalledWith(
-      "resources/ backs every definition.\n",
+  it("prints the definitions of one file, relative to the app root", async () => {
+    const appRoot = appWithQuery();
+    writeAction(
+      appRoot,
+      `export const Create = defineAction({ action: { id: 51, parameters: [] } });`,
     );
-  });
 
-  it("checks the resources of the current directory by default", async () => {
-    await run("check-resources");
-
-    expect(checkResources).toHaveBeenCalledWith(process.cwd());
-  });
-
-  it("prints the definitions of one file", async () => {
     await run(
       "print-definitions",
       "queries/orders.query.ts",
       "--app-root",
-      "data_apps/orders",
+      appRoot,
     );
 
-    expect(printDefinitions).toHaveBeenCalledWith(
-      "data_apps/orders",
-      "queries/orders.query.ts",
-    );
-    expect(process.stdout.write).toHaveBeenCalledWith(
-      '{"queries":[],"actions":[]}\n',
-    );
+    expect(JSON.parse(printed())).toEqual({
+      queries: [
+        {
+          export: "Orders",
+          file: "queries/orders.query.ts",
+          savedQuestionEntityId: QUESTION,
+          query: { source: { type: "table", id: 1 } },
+        },
+      ],
+      actions: [],
+    });
   });
 
-  it("prints every definition by default", async () => {
-    await run("print-definitions");
+  it("confirms resources that back every definition", async () => {
+    const appRoot = appWithQuery();
+    writeResource(appRoot, "cards/orders.yaml", {
+      name: "Orders",
+      type: "question",
+      entity_id: QUESTION,
+    });
 
-    expect(printDefinitions).toHaveBeenCalledWith(process.cwd(), undefined);
+    await run("check-resources", "--app-root", appRoot);
+
+    expect(printed()).toBe("resources/ backs every definition.\n");
+  });
+
+  it("fails when a definition's resource is missing", async () => {
+    const appRoot = appWithQuery();
+
+    await expect(run("check-resources", "--app-root", appRoot)).rejects.toThrow(
+      `queries/orders.query.ts:Orders names saved question ${QUESTION}, which no file in resources/cards/ holds.`,
+    );
+    expect(printed()).toBe("");
   });
 });

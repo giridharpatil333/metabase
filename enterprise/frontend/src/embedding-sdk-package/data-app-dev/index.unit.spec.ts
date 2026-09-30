@@ -1,6 +1,11 @@
 import { isObject } from "metabase-types/guards";
 
-import { checkResources } from "../data-app-resources/check";
+import {
+  makeApp,
+  setupResourceTests,
+  writeQuery,
+  writeResource,
+} from "../data-app-resources/tests/setup";
 
 import { readManifest } from "./config/read-manifest";
 
@@ -22,9 +27,6 @@ jest.mock("./dev-plugin/plugin", () => ({
   dataAppSandboxDevPlugin: () => ({ name: "mock-sandbox-dev" }),
 }));
 jest.mock("./config/read-manifest");
-jest.mock("../data-app-resources/check", () => ({
-  checkResources: jest.fn(),
-}));
 
 const mockedReadManifest = jest.mocked(readManifest);
 
@@ -59,6 +61,10 @@ describe("dataAppConfig", () => {
   });
 
   describe("the resource check", () => {
+    setupResourceTests();
+
+    const QUESTION = "questionEntityId00010";
+
     type ResourceCheckPlugin = {
       apply: unknown;
       buildStart: () => Promise<void>;
@@ -75,9 +81,11 @@ describe("dataAppConfig", () => {
     const flatten = (option: unknown): unknown[] =>
       Array.isArray(option) ? option.flatMap(flatten) : [option];
 
-    const resourceCheckPlugin = () => {
+    /** The plugin of an app in `appRoot`, which vite runs from its own directory. */
+    const resourceCheckPlugin = (appRoot: string) => {
+      jest.spyOn(process, "cwd").mockReturnValue(appRoot);
       mockedReadManifest.mockReturnValue({
-        manifestPath: "/app/data_app.yaml",
+        manifestPath: `${appRoot}/data_app.yaml`,
         manifest: {},
       });
 
@@ -92,23 +100,37 @@ describe("dataAppConfig", () => {
       return plugin;
     };
 
+    const appWithQuery = () => {
+      const appRoot = makeApp();
+      writeQuery(
+        appRoot,
+        `export const Orders = defineQuery({ savedQuestionEntityId: "${QUESTION}", source: { type: "table", id: 1 } });`,
+      );
+      return appRoot;
+    };
+
     it("runs only for a production build", () => {
-      expect(resourceCheckPlugin().apply).toBe("build");
+      expect(resourceCheckPlugin(appWithQuery()).apply).toBe("build");
     });
 
-    it("checks the app's resources when the build starts", async () => {
-      await resourceCheckPlugin().buildStart();
+    it("lets the build start when the app's resources back its definitions", async () => {
+      const appRoot = appWithQuery();
+      writeResource(appRoot, "cards/orders.yaml", {
+        name: "Orders",
+        type: "question",
+        entity_id: QUESTION,
+      });
 
-      expect(checkResources).toHaveBeenCalledWith(process.cwd());
+      await expect(
+        resourceCheckPlugin(appRoot).buildStart(),
+      ).resolves.toBeUndefined();
     });
 
-    it("fails the build when the check fails", async () => {
-      jest
-        .mocked(checkResources)
-        .mockRejectedValue(new Error("resources don't back the definitions"));
-
-      await expect(resourceCheckPlugin().buildStart()).rejects.toThrow(
-        "resources don't back the definitions",
+    it("fails the build when a definition's resource is missing", async () => {
+      await expect(
+        resourceCheckPlugin(appWithQuery()).buildStart(),
+      ).rejects.toThrow(
+        `queries/orders.query.ts:Orders names saved question ${QUESTION}, which no file in resources/cards/ holds.`,
       );
     });
   });

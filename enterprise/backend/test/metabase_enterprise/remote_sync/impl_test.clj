@@ -2044,16 +2044,6 @@ serdes/meta:
             (is (= "remote-R" @materialized)
                 "the commit keeps the remote's data_apps/, so its apps are materialized before the version moves")))))))
 
-(deftest export!-force-without-divergence-does-not-rematerialize-data-apps-test
-  (testing "a forced export over a remote that hasn't moved keeps data_apps/ as last imported, so there's nothing to materialize"
-    (mt/with-temp [:model/RemoteSyncTask {task-id :id} {:sync_task_type "export"}]
-      (let [materialized? (atom false)]
-        (mt/with-dynamic-fn-redefs [remote-sync.task/last-version      (constantly "remote-R")
-                                    spec/exportable-entities           (constantly {"Card" [999999999]})
-                                    data-apps.sync/sync-from-snapshot! (fn [& _] (reset! materialized? true) nil)]
-          (is (= :success (:status (impl/export! (export-test-snapshot "remote-R") task-id "msg" :force? true))))
-          (is (false? @materialized?)))))))
-
 (deftest export!-no-merge-when-not-diverged-test
   (testing "when the remote has not advanced, export! takes the normal (non-merge) export path"
     (mt/with-temp [:model/RemoteSyncTask {task-id :id} {:sync_task_type "export"}]

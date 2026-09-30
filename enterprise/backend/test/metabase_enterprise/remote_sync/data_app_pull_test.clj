@@ -171,3 +171,45 @@
               (is (= :success (:status (import-at! src "v0" :force? true))))
               (mt/with-dynamic-fn-redefs [data-apps.sync/sync-from-snapshot! (fn [& _] (throw (ex-info "should not run" {})))]
                 (is (=? {:status :success :outcome {:kind "pull-skipped"}} (import-at! src "v0")))))))))))
+
+(defn- export-at!
+  "Force-export the local synced content over `src`'s current snapshot, and complete the task. The collection in
+  [[coll-file]] is what gets exported, so it has to be remote-synced."
+  [src]
+  (t2/update! :model/Collection :entity_id "M-Q4pcV0qkiyJ0kiSWECl" {:is_remote_synced true})
+  (let [task   (t2/insert-returning-pk! :model/RemoteSyncTask
+                                        {:sync_task_type "export" :initiated_by (mt/user->id :rasta)})
+        result (impl/export! (source.p/snapshot src) task "export" :force? true)]
+    (impl/handle-task-result! result task)
+    result))
+
+(deftest forced-export-over-a-diverged-remote-materializes-its-data-apps-test
+  (testing "the commit keeps the remote's data_apps/, so an app someone pushed is materialized before the version
+            moves past it"
+    (search.tu/with-index-disabled
+      (mt/with-premium-features #{:data-apps}
+        (mt/with-temporary-setting-values [remote-sync-type :read-write remote-sync-transforms false]
+          (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup]
+            (let [src (rs.test/versioned-source :trees {"v0" coll-file
+                                                        "v1" (merge coll-file (app-tree! "sales" "BUNDLE"))}
+                                                :current "v1")]
+              (is (= :success (:status (import-at! src "v0" :force? true))))
+              (is (not (t2/exists? :model/DataApp :name "sales")) "the app only exists on the remote")
+              (is (=? {:status :success} (export-at! src)))
+              (is (=? {:sync_error nil :resource_collection_id pos-int?}
+                      (t2/select-one :model/DataApp :name "sales"))))))))))
+
+(deftest forced-export-over-an-unchanged-remote-leaves-data-apps-as-imported-test
+  (testing "a remote that hasn't moved still has the data_apps/ last imported, so the export doesn't materialize
+            them again"
+    (search.tu/with-index-disabled
+      (mt/with-premium-features #{:data-apps}
+        (mt/with-temporary-setting-values [remote-sync-type :read-write remote-sync-transforms false]
+          (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup]
+            (let [src (rs.test/versioned-source :trees {"v0" (merge coll-file (app-tree! "sales" "BUNDLE"))}
+                                                :current "v0")]
+              (is (= :success (:status (import-at! src "v0" :force? true))))
+              ;; A materialization would clear this, since the app loads.
+              (t2/update! :model/DataApp :name "sales" {:sync_error "left from before"})
+              (is (=? {:status :success} (export-at! src)))
+              (is (= "left from before" (t2/select-one-fn :sync_error :model/DataApp :name "sales"))))))))))

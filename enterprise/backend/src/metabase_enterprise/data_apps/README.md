@@ -149,8 +149,8 @@ middleware's lookup doesn't pull in route code.
 ## Permissions
 
 Each app has two resources (`resources.clj`), reasserted on every sync: a **collection** holding
-what the app is served from (saved questions, action models, table-sourced metrics), loaded from its
-`resources/`, and a server-managed **permissions group** its users belong to.
+what the app is served from (saved questions, and copies of the models and metrics they use),
+loaded from its `resources/`, and a server-managed **permissions group** its users belong to.
 
 The group is set database-level `view-data :blocked` on every database, so it grants **no data
 access of its own** (which cascades `create-queries`/`download-results` to `:no`); every group but
@@ -158,7 +158,8 @@ admins is revoked from the collection before the app group gets read access. Del
 both resources and everything in the collection.
 
 **Viewing an app** requires read access to its resource collection. You have to be a member in
-the app's group or be an admin. An app without a linked resource collection is considered _unpublished_.
+the app's group or be an admin. An app without a linked resource collection, because its resources have
+never loaded, is considered _unpublished_.
 The app's metadata and bundle endpoint returns HTTP 409 for all signed-in users. The frontend
 shows the error "This data app isn’t published yet".
 

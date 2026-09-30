@@ -192,10 +192,11 @@
 
 (defn- read-check-data-app
   "Check whether the current user can access a data app. Viewing requires read access to the app's
-   resource collection. An app with no linked resource collection has not been published yet: it is
-   not viewable by anyone through this endpoint (an admin must publish it first), signalled with a
-   409 so the client can show a dedicated \"not published\" screen rather than leaking metadata or
-   the bundle to every signed-in user."
+   resource collection. An app with no linked resource collection has not been published yet: its
+   resources have never loaded from the repository (its first load failed, and `sync_error` says
+   why), so it is not viewable by anyone through this endpoint. That is signalled with a 409 so the
+   client can show a dedicated \"not published\" screen rather than leaking metadata or the bundle
+   to every signed-in user."
   [app]
   (api/read-check app)
   (if-let [collection-id (:resource_collection_id app)]

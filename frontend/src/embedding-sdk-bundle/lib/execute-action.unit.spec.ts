@@ -65,6 +65,7 @@ describe("executeAction", () => {
     });
 
     it("runs the authored action in the dev preview", async () => {
+      EMBEDDING_SDK_CONFIG.isDataApp = true;
       EMBEDDING_SDK_CONFIG.isDataAppDev = true;
 
       await expectExecuted(AUTHORED_ID, definition);

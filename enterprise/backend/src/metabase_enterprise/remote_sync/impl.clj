@@ -315,8 +315,10 @@
    the repo (outside the serdes paths), so they ride this import rather than having their own sync. Runs inside
    the import's commit transaction, before the version is written: a task's `version` is the sync base (see
    [[remote-sync.db/last-synced-task]]) and gates every later pull, so a version that landed without its data
-   apps would never be re-materialized. A pull of the version already imported also runs it, outside any import
-   transaction, when an app's last sync failed. Adapts the snapshot to plain reader fns;
+   apps would never be re-materialized. An export that moves the version to a commit carrying the remote's
+   `data_apps/` (a merge, or a forced export over a diverged remote) runs it the same way, and a pull of the
+   version already imported runs it, outside any import transaction, for the apps whose last sync failed. Adapts
+   the snapshot to plain reader fns;
    `data-apps.sync/sync-from-snapshot!` never throws."
   ([snapshot] (materialize-data-apps! snapshot {}))
   ([^SourceSnapshot snapshot opts]
@@ -721,7 +723,8 @@
         ;; file tree under `data_apps/`), not the synthetic merged snapshot `load-snapshot!` sees. They're
         ;; counted outside serdes, so fold how many they upserted or removed into the outcome — otherwise a
         ;; data-app-only pull would report `pull-skipped` / `count 0`. The only path that skipped `finalize!`
-        ;; and still has a result is an unchanged pull retrying failed apps; one it fixed counts as a pull.
+        ;; and still has a result is an unchanged pull retrying failed apps; a retry that changed an app's state (it
+        ;; loaded, or failed differently) counts as a pull.
         (if (= :success (:status result))
           ;; Removals count too: a pull whose only change is deleting an app directory upserts nothing
           ;; (`:changed` 0) but still changed what this instance serves, so it must report as a pull, not skipped.

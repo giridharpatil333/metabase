@@ -1981,6 +1981,34 @@ serdes/meta:
           (is (= :conflict (:status result)))
           (is (str/includes? (:message result) "rewritten")))))))
 
+(deftest export!-merge-refuses-content-that-uses-data-app-resources-test
+  (testing "a merge export over a diverged remote refuses remote-synced content that reads a data app's resource card"
+    (mt/with-temporary-setting-values [remote-sync-type :read-write remote-sync-transforms false]
+      (mt/with-temp [:model/RemoteSyncTask {task-id :id} {:sync_task_type "export"}
+                     :model/Collection     {synced-id :id} {:name "Synced" :is_remote_synced true :location "/"}
+                     :model/Collection     {app-collection-id :id} {:name "App" :location "/"}
+                     :model/DataApp        _ {:name                   "reads-app"
+                                              :display_name           "Reads app"
+                                              :bundle_path            "data_apps/reads-app/index.js"
+                                              :resource_collection_id app-collection-id}
+                     :model/Card           {app-card-id :id} {:collection_id app-collection-id
+                                                              :dataset_query (mt/mbql-query venues)}
+                     :model/Card           _ {:collection_id synced-id
+                                              :dataset_query {:database (mt/id)
+                                                              :type     :query
+                                                              :query    {:source-table (str "card__" app-card-id)}}}]
+        (let [merged? (atom false)]
+          (mt/with-dynamic-fn-redefs [remote-sync.task/last-version (constantly "base-B")
+                                      source/compute-merge          (fn [& _] (reset! merged? true) {:merged [] :conflicts [] :summary {}})]
+            (let [result (impl/export! (export-test-snapshot "remote-R") task-id "msg"
+                                       :merge? true
+                                       :source (export-test-source)
+                                       :base-snapshot (export-test-snapshot "base-B"))]
+              (is (= :error (:status result)))
+              (is (re-find (re-pattern (str "uses data app resources.*cards " app-card-id)) (:message result)))
+              (is (false? @merged?) "nothing is merged")
+              (is (nil? (:version (t2/select-one :model/RemoteSyncTask :id task-id)))))))))))
+
 (deftest export!-refuses-when-diverged-without-merge-flag-test
   (testing "when the remote advanced and neither force? nor merge? is set, export! refuses without writing or merging"
     (mt/with-temp [:model/RemoteSyncTask {task-id :id} {:sync_task_type "export"}]

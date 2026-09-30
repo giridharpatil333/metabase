@@ -154,7 +154,7 @@ Write the YAML in the Metabase representation format. Use skill discovery to fin
      model: Collection
    ```
 
-2. **Print the definitions.** `npm run print-definitions` (optionally with one file, `npm run print-definitions -- queries/revenue.query.ts`) prints each evaluated definition as JSON with the entity ID it names in `resources/`, or `null`. This is what the YAML is written from. The printed query carries numeric IDs, and its fields also carry their column names; the YAML references entities by name and entity ID instead. Take each table's database, schema, and table name, and each metric's, segment's, and measure's entity ID, from their comments in `src/metabase.data.ts`.
+2. **Print the definitions.** `npm run print-definitions` (optionally with one file, `npm run print-definitions -- queries/revenue.query.ts`) prints each evaluated definition as JSON with the entity ID it names in `resources/`, or `null`. This is what the YAML is written from. The printed query carries numeric IDs, and its fields also carry their column names; the YAML references entities by name and entity ID instead. Take each table's database and schema names, and each metric's, segment's, and measure's entity ID, from their comments in `src/metabase.data.ts`. A table's name is in its comment too, unless it equals the table's key in the schema, which is then the name.
 
 3. **A saved question per query.** Write `resources/cards/<name>.yaml` as a card of `type: question`, named after the export, with `collection_id` set to the app's collection, and a `dataset_query` holding exactly the definition's query: its source table and its fixed fields, filters, aggregations, breakouts, order, and limit. Nothing from the hook's dynamic second argument goes in. Set the card's entity ID as the definition's `savedQuestionEntityId`. When the definition changes, update its card; no tool detects a card that drifted from its definition.
 
@@ -188,7 +188,7 @@ Wire `package.json` with `"print-definitions": "embedding-sdk-react data-apps pr
 
 ## Standard pattern
 
-Two files per query: the definition in `queries/`, the hook call in the component.
+Two files per query: the definition in `queries/`, the hook call in the component. The examples from here on leave out `savedQuestionEntityId` to stay short; every real definition carries it (see *Write every query and action into `resources/`*).
 
 ```ts
 // queries/orders.query.ts

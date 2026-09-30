@@ -121,6 +121,12 @@
              (testing "importing the same files again changes nothing"
                (is (=? {:changed 0} (import! resources)))))))))))
 
+(defn- question-path [resources]
+  (some #(when (str/starts-with? % "cards/") %) (keys resources)))
+
+(defn- edit-question [resources f]
+  (update resources (question-path resources) #(yaml/generate-string (f (yaml/parse-string %)))))
+
 (deftest import-reverts-manual-edits-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
@@ -149,6 +155,14 @@
                     (t2/select-one :model/Card card-id)))
             (is (=? {:description nil :authority_level nil}
                     (t2/select-one :model/Collection collection-id))))
+          (testing "settings a hand-written file leaves out are put back too"
+            (let [minimal (edit-question resources #(dissoc % :visualization_settings :parameters :parameter_mappings))]
+              (import! minimal)
+              (t2/update! :model/Card card-id {:visualization_settings {:table.pivot true}
+                                               :parameters             [{:id "p" :type "category" :slug "p"}]})
+              (import! minimal)
+              (is (nil? (sync-error)))
+              (is (=? {:visualization_settings {} :parameters []} (t2/select-one :model/Card card-id)))))
           (testing "a card trashed in Metabase comes back"
             (t2/update! :model/Card card-id {:archived true})
             (import! resources)
@@ -242,12 +256,6 @@
 (defn- question-resources []
   (data-apps.tu/build-resources collection-eid [{:entity_id question-eid :name "VenuesList" :query (venues-query)}] []))
 
-(defn- question-path [resources]
-  (some #(when (str/starts-with? % "cards/") %) (keys resources)))
-
-(defn- edit-question [resources f]
-  (update resources (question-path resources) #(yaml/generate-string (f (yaml/parse-string %)))))
-
 (deftest import-refuses-resources-outside-the-app-test
   (mt/with-premium-features #{:data-apps}
     (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
@@ -260,6 +268,12 @@
           (mt/with-temp [:model/Card {foreign-id :id} {:name "Someone else's" :entity_id question-eid}]
             (refused resources "Card shopQuestionListVenue already exists outside")
             (is (= "Someone else's" (t2/select-one-fn :name :model/Card foreign-id)))))
+        (testing "a card archived in its file"
+          (refused (edit-question resources #(assoc % :archived true))
+                   "must not be archived"))
+        (testing "a card whose query names no database"
+          (refused (edit-question resources #(assoc % :dataset_query {}))
+                   "must hold a query"))
         (testing "a card outside the app's collection"
           (refused (edit-question resources #(assoc % :collection_id "someOtherCollection01"))
                    "must be in the collection"))
@@ -356,6 +370,9 @@
            (testing "an action carrying an HTTP request"
              (refused (edit-file resources "actions/" #(assoc % :http [{:template {:method "GET" :url "https://example.com"}}]))
                       "must carry exactly the row its action type uses"))
+           (testing "an action archived in its file"
+             (refused (edit-file resources "actions/" #(assoc % :archived true))
+                      "must not be archived"))
            (testing "an HTTP action"
              (refused (edit-file resources "actions/" #(assoc % :type "http"))
                       "must be an implicit or query action"))
@@ -378,10 +395,13 @@
           (is (str/includes? (str (sync-error)) "must be a plain root collection that is not remote-synced or archived"))
           (is (nil? (app-collection-id))))
         (testing "a collection that already belongs to something else"
-          (mt/with-temp [:model/Collection _ {:entity_id collection-eid}]
+          (mt/with-temp [:model/Collection {foreign-id :id} {:name "Someone else's" :entity_id collection-eid}]
             (import! resources)
             (is (str/includes? (str (sync-error))
-                               (str "Collection " collection-eid " already exists and isn't this data app's collection")))))))))
+                               (str "Collection " collection-eid " already exists and isn't this data app's collection")))
+            (is (nil? (app-collection-id)) "the app is not linked to it")
+            (is (= "Someone else's" (t2/select-one-fn :name :model/Collection foreign-id))
+                "the collection is left as it was")))))))
 
 (deftest validate-resources-names-a-malformed-file-test
   (doseq [[description entity] [["an empty file" nil]
@@ -399,19 +419,21 @@
                                :entity {:entity_id collection-eid :serdes/meta [{:model "Collection" :id collection-eid}]}}
                               {:path "cards/q.yaml" :model "Card" :entity entity}]))))))
 
-(deftest renaming-an-app-directory-keeps-its-resources-in-one-pull-test
-  (mt/with-premium-features #{:data-apps}
-    (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
-      (let [resources (question-resources)
-            files     (fn [slug]
-                        (data-apps.tu/app-files slug {:name "Shop" :path "index.js" :bundle "B"
-                                                      :collection collection-eid :resources resources}))]
-        (data-app.sync/import-from-snapshot! (data-apps.tu/snapshot (files "shop")))
-        (is (=? {:removed 1}
-                (data-app.sync/import-from-snapshot! (data-apps.tu/snapshot (files "shop-renamed")))))
-        (is (=? {:sync_error nil :resource_collection_id pos-int?}
-                (t2/select-one :model/DataApp :name "shop-renamed")))
-        (is (some? (card-by-eid question-eid)))))))
+(deftest renaming-an-app-directory-reloads-its-resources-in-one-pull-test
+  (testing "the removed app's resources go with it, and the renamed app loads its own files as new rows"
+    (mt/with-premium-features #{:data-apps}
+      (mt/with-model-cleanup [:model/DataApp :model/Collection :model/PermissionsGroup :model/Card]
+        (let [resources (question-resources)
+              files     (fn [slug]
+                          (data-apps.tu/app-files slug {:name "Shop" :path "index.js" :bundle "B"
+                                                        :collection collection-eid :resources resources}))]
+          (data-app.sync/import-from-snapshot! (data-apps.tu/snapshot (files "shop")))
+          (let [card-id (:id (card-by-eid question-eid))]
+            (is (=? {:removed 1}
+                    (data-app.sync/import-from-snapshot! (data-apps.tu/snapshot (files "shop-renamed")))))
+            (is (=? {:sync_error nil :resource_collection_id pos-int?}
+                    (t2/select-one :model/DataApp :name "shop-renamed")))
+            (is (not= card-id (:id (card-by-eid question-eid))))))))))
 
 (deftest import-refuses-out-of-place-card-files-test
   (mt/with-premium-features #{:data-apps}

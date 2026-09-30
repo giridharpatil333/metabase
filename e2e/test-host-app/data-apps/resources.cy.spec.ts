@@ -51,7 +51,7 @@ const ordersQuestion = (entityId: string, stage = {}) =>
     stage,
   });
 
-const countOf = (metric: string) => ({
+const metricAggregation = (metric: string) => ({
   aggregation: [["metric", { "lib/uuid": crypto.randomUUID() }, metric]],
 });
 
@@ -193,7 +193,7 @@ describe("Embedding SDK: data-app resources (queries)", () => {
       writeDataAppResources(APP_ROOT(), {
         collection: collection(),
         cards: [
-          ordersQuestion(question, countOf(metricCopy)),
+          ordersQuestion(question, metricAggregation(metricCopy)),
           resourceCard({
             entityId: metricCopy,
             name: "Orders count",
@@ -256,7 +256,7 @@ describe("Embedding SDK: data-app resources (queries)", () => {
       // The question reads the source metric instead of a copy in the app.
       writeDataAppResources(APP_ROOT(), {
         collection: collection(),
-        cards: [ordersQuestion(question, countOf(metric.entity_id))],
+        cards: [ordersQuestion(question, metricAggregation(metric.entity_id))],
       });
 
       publishDataApp(APP_ROOT(), APP_SLUG, { expectSynced: false }).then(

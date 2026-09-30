@@ -66,10 +66,10 @@ Nothing checks that a saved question's query matches its definition.
 
 ## Discovery is deliberately strict
 
-`discover.ts` parses each file twice over. The TypeScript AST locates `defineQuery`/`defineAction`
-calls and enforces that each one directly initializes a **named exported** variable with a single
-object literal. The file is then bundled with esbuild and evaluated **twice** and the two results
-compared, so a definition that isn't deterministic can't print differently from what the YAML was
+Each file is read twice over. `ast/definition-source.ts` walks the TypeScript AST to locate
+`defineQuery`/`defineAction` calls and enforces that each one directly initializes a **named
+exported** variable with a single object literal. `discover.ts` then bundles the file with esbuild,
+evaluates it **twice**, and compares the two results, so a definition that isn't deterministic can't print differently from what the YAML was
 written from.
 
 ## Dev preview vs production build

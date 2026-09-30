@@ -75,6 +75,18 @@ describe("resource check", () => {
     );
   });
 
+  it("ignores hidden files, which a pull skips", async () => {
+    const appRoot = checkedApp();
+    fs.renameSync(
+      path.join(appRoot, "resources/cards/orders.yaml"),
+      path.join(appRoot, "resources/cards/.orders.yaml"),
+    );
+
+    await expect(checkResources(appRoot)).rejects.toThrow(
+      `names saved question ${QUESTION}, which no file in resources/cards/ holds.`,
+    );
+  });
+
   it("fails for a query that names a card that is not a question", async () => {
     const appRoot = checkedApp();
     writeResource(appRoot, "cards/orders.yaml", cardFile(QUESTION, "metric"));

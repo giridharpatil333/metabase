@@ -257,13 +257,23 @@ export const newEntityId = () =>
     (byte) => ENTITY_ID_ALPHABET[byte & 63],
   ).join("");
 
-/** A table as serialized YAML references it: database, schema, and table name. */
-export type PortableTable = [database: string, schema: string, table: string];
+/**
+ * A table as serialized YAML references it: database, schema, and table name.
+ * The schema is null for a database without schemas.
+ */
+export type PortableTable = [
+  database: string,
+  schema: string | null,
+  table: string,
+];
 
 type ResourceEntity = Record<string, unknown>;
 
-const serdesMeta = (model: string, entityId: string, label: string) => [
-  { id: entityId, label, model },
+/** The slug serialization labels an entity with, from its name. */
+const slugOf = (name: string) => name.toLowerCase().replace(/\W+/g, "_");
+
+const serdesMeta = (model: string, entityId: string, name: string) => [
+  { id: entityId, label: slugOf(name), model },
 ];
 
 /** The app's `resources/collection.yaml`. */
@@ -309,7 +319,7 @@ export const resourceCard = ({
     ],
   },
   visualization_settings: {},
-  "serdes/meta": serdesMeta("Card", entityId, name.toLowerCase()),
+  "serdes/meta": serdesMeta("Card", entityId, name),
 });
 
 /** A copy of an implicit action in `resources/actions/`, on the model copy `model`. */
@@ -333,11 +343,11 @@ export const resourceImplicitAction = ({
   http: [],
   parameters: [],
   parameter_mappings: [],
-  "serdes/meta": serdesMeta("Action", entityId, name.toLowerCase()),
+  "serdes/meta": serdesMeta("Action", entityId, name),
 });
 
 const fileName = (entity: ResourceEntity) =>
-  `${String(entity.name).toLowerCase().replace(/\W+/g, "_")}_${String(entity.entity_id)}.yaml`;
+  `${slugOf(String(entity.name))}_${String(entity.entity_id)}.yaml`;
 
 /** Writes an app's `resources/` as YAML, replacing what was there. */
 export function writeDataAppResources(
@@ -434,7 +444,7 @@ export function declareDataAppQueries(
  */
 export function runDataAppCli(command: string) {
   return cy.exec(
-    `cd "${dataAppHostAppRoot()}" && npx --no-install embedding-sdk-react data-apps ${command}`,
+    `cd "${dataAppHostAppRoot()}" && ./node_modules/.bin/embedding-sdk-react data-apps ${command}`,
     { failOnNonZeroExit: false, timeout: 60_000 },
   );
 }

@@ -5,6 +5,7 @@ import {
   COLLECTION_GROUP_ID,
   DATA_GROUP_ID,
 } from "e2e/support/cypress_sample_instance_data";
+import type { PortableTable } from "e2e/support/helpers";
 import {
   type DataApp,
   DataPermission,
@@ -439,57 +440,27 @@ function openManageUserAccessFromAppRow() {
 
 const userRow = (email: string) => H.main().findByText(email).closest("tr");
 
-type TableReference = [database: string, schema: string | null, table: string];
-
-/** A saved question on `table` in the `good` app's resource collection, as an author writes one. */
-function questionFile(
-  entityId: string,
-  [database, schema, table]: TableReference,
-) {
-  return [
-    `name: ${JSON.stringify(table)}`,
-    `entity_id: ${entityId}`,
-    "type: question",
-    "display: table",
-    "collection_id: goodAppCollection0000",
-    "dataset_query:",
-    "  lib/type: mbql/query",
-    `  database: ${JSON.stringify(database)}`,
-    "  stages:",
-    "  - lib/type: mbql.stage/mbql",
-    "    source-table:",
-    `    - ${JSON.stringify(database)}`,
-    `    - ${JSON.stringify(schema)}`,
-    `    - ${JSON.stringify(table)}`,
-    "visualization_settings: {}",
-    "serdes/meta:",
-    `- id: ${entityId}`,
-    "  label: question",
-    "  model: Card",
-    "",
-  ].join("\n");
-}
-
 /**
  * Pulls the example data apps with the `good` app's saved questions replaced by
  * one per table in `tables`, so the app depends on exactly those tables. The
  * import records them as the app's table dependencies.
  */
-function pullAppReading(tables: TableReference[]) {
-  const resources = `${H.LOCAL_GIT_PATH}/data_apps/${DATA_APP_NAME}/resources`;
-
+function pullAppReading(tables: PortableTable[]) {
   H.setupGitSync();
   H.copySyncedCollectionFixture();
   H.copySyncedDataAppsFixture();
-  cy.task("removeDataAppPaths", { paths: [`${resources}/cards`] });
-  cy.task("writeDataAppFiles", {
-    files: Object.fromEntries(
-      tables.map((table, index) => {
-        const entityId = `goodAppReads${String(index).padStart(9, "0")}`;
-        return [
-          `${resources}/cards/${entityId}.yaml`,
-          questionFile(entityId, table),
-        ];
+  H.writeDataAppResources(`${H.LOCAL_GIT_PATH}/data_apps/${DATA_APP_NAME}`, {
+    collection: H.resourceCollection(
+      "goodAppCollection0000",
+      "Data App: Good App",
+    ),
+    cards: tables.map((table, index) =>
+      H.resourceCard({
+        entityId: `goodAppReads${String(index).padStart(9, "0")}`,
+        name: table[2],
+        type: "question",
+        collection: "goodAppCollection0000",
+        table,
       }),
     ),
   });

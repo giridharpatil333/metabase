@@ -26,7 +26,14 @@ function listYamlFiles(directory: string) {
   return fs.existsSync(directory)
     ? fs
         .readdirSync(directory, { withFileTypes: true })
-        .filter((entry) => entry.isFile() && entry.name.endsWith(".yaml"))
+        // A pull skips hidden files, so a check that counted them could pass an
+        // app whose resources never load.
+        .filter(
+          (entry) =>
+            entry.isFile() &&
+            !entry.name.startsWith(".") &&
+            entry.name.endsWith(".yaml"),
+        )
         .map((entry) => entry.name)
         .sort()
     : [];

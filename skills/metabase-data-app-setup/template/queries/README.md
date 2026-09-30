@@ -18,9 +18,14 @@ import schema from "../src/metabase.data";
 
 const orders = schema.tables.orders;
 
-export const OrdersList = defineQuery({ source: orders, limit: 100 });
+export const OrdersList = defineQuery({
+  savedQuestionEntityId: "<entity ID of its saved question>",
+  source: orders,
+  limit: 100,
+});
 
 export const OrdersByMonth = defineQuery({
+  savedQuestionEntityId: "<entity ID of its saved question>",
   source: orders,
   aggregations: [aggregations.count()],
   breakouts: [breakout(orders.fields.createdAt, { unit: "month" })],

@@ -255,8 +255,9 @@
          ;; every app directory present in the repo (parsed or not) — the set of
          ;; slugs that should survive this sync
          present-slugs (into #{} (map :slug) discovered)
-         ;; Pruning first frees what a removed app owned, so an app directory renamed in the same commit can load the
-         ;; collection it brought along. A retry of the commit already imported has nothing to prune.
+         ;; Pruning first deletes what a removed app owned, so an app directory renamed in the same commit loads its
+         ;; files again under the same entity IDs, as new rows. A retry of the commit already imported has nothing to
+         ;; prune.
          {:keys [removed] :as pruning-result} (if only-failed? {:removed 0} (prune-apps! present-slugs))
          ;; pre-sync rows, so we can tell a real change from a sha/timestamp bump
          existing      (into {} (map (juxt :name identity))

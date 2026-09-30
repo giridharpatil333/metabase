@@ -688,3 +688,38 @@
             (is (re-find #"local edit"
                          (get (files mock) (path-for-eid mock a-eid)))
                 "the local edit survives the overwrite")))))))
+
+(defn- with-card-reading-app-resource!
+  "Calls `f` once `card-a` of [[with-exported-collection!]] reads a card in a data app's resource collection, which
+  only that app's repository files may define."
+  [f]
+  (with-exported-collection!
+    (fn [{:keys [card-a] :as ctx}]
+      (mt/with-temp [:model/Collection {app-collection-id :id} {:name "App" :location "/"}
+                     :model/DataApp    _ {:name                   "reads-app"
+                                          :display_name           "Reads app"
+                                          :bundle_path            "data_apps/reads-app/index.js"
+                                          :resource_collection_id app-collection-id}
+                     :model/Card       {app-card-id :id} {:collection_id app-collection-id
+                                                          :dataset_query (venues-query)}]
+        (t2/update! :model/Card card-a {:dataset_query (card-source-query app-card-id)})
+        (set-status! "Card" card-a "update")
+        (f (assoc ctx :app-card-id app-card-id))))))
+
+(deftest incremental-export-refuses-content-that-uses-data-app-resources-test
+  (with-card-reading-app-resource!
+    (fn [{:keys [mock app-card-id]}]
+      (let [files-before (files mock)
+            result       (impl/export! (source.p/snapshot mock) (new-task!) "reads an app card")]
+        (is (= :error (:status result)))
+        (is (re-find (re-pattern (str "uses data app resources.*cards " app-card-id)) (:message result)))
+        (is (= files-before (files mock)) "nothing is written")))))
+
+(deftest full-export-refuses-content-that-uses-data-app-resources-test
+  (with-card-reading-app-resource!
+    (fn [{:keys [mock app-card-id]}]
+      (let [files-before (files mock)
+            result       (impl/export! (source.p/snapshot mock) (new-task!) "reads an app card" :force? true)]
+        (is (= :error (:status result)))
+        (is (re-find (re-pattern (str "uses data app resources.*cards " app-card-id)) (:message result)))
+        (is (= files-before (files mock)) "nothing is written")))))

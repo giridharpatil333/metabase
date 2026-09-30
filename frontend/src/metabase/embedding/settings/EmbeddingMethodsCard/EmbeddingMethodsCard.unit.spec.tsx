@@ -18,20 +18,28 @@ import {
 
 import { EmbeddingMethodsCard } from "./EmbeddingMethodsCard";
 
-const MERGED_LABEL = "Modular embedding and SDK for React";
+const MERGED_LABEL = "Modular embedding";
+const SDK_LABEL = "Modular embedding React SDK";
 const OSS_LABEL = "Enable embedding";
 
 type SetupOpts = {
   hasSimpleEmbedding?: boolean;
+  hasSdkEmbedding?: boolean;
   hasFullAppEmbedding?: boolean;
   envSettingKeys?: (keyof Settings)[];
   showEmbedTerms?: boolean;
 } & Partial<
-  Pick<Settings, "enable-embedding-modular" | "enable-embedding-interactive">
+  Pick<
+    Settings,
+    | "enable-embedding-modular"
+    | "enable-embedding-sdk"
+    | "enable-embedding-interactive"
+  >
 >;
 
 async function setup({
   hasSimpleEmbedding = true,
+  hasSdkEmbedding = hasSimpleEmbedding,
   hasFullAppEmbedding = hasSimpleEmbedding,
   envSettingKeys = [],
   showEmbedTerms = false,
@@ -39,17 +47,23 @@ async function setup({
 }: SetupOpts = {}) {
   const settingValues = createMockSettings({
     "enable-embedding-modular": false,
+    "enable-embedding-sdk": false,
     "enable-embedding-interactive": false,
     "show-modular-embed-terms": showEmbedTerms,
     "token-features": createMockTokenFeatures({
       embedding_simple: hasSimpleEmbedding,
+      embedding_sdk: hasSdkEmbedding,
       embedding: hasFullAppEmbedding,
     }),
     ...values,
   });
 
   const definitions = (
-    ["enable-embedding-modular", "enable-embedding-interactive"] as const
+    [
+      "enable-embedding-modular",
+      "enable-embedding-sdk",
+      "enable-embedding-interactive",
+    ] as const
   ).map((key) =>
     createMockSettingDefinition({
       key,
@@ -74,13 +88,13 @@ async function setup({
 }
 
 describe("EmbeddingMethodsCard", () => {
-  it("presents modular embedding, the SDK and guest embeds as one method", async () => {
+  it("presents modular embedding, the React SDK and full-app embedding as separate methods", async () => {
     await setup();
 
     expect(await screen.findByText(MERGED_LABEL)).toBeInTheDocument();
+    expect(screen.getByText(SDK_LABEL)).toBeInTheDocument();
     expect(screen.getByText("Full-app embedding")).toBeInTheDocument();
 
-    expect(screen.queryByText("Modular embedding SDK")).not.toBeInTheDocument();
     expect(screen.queryByText(OSS_LABEL)).not.toBeInTheDocument();
   });
 
@@ -116,7 +130,7 @@ describe("EmbeddingMethodsCard", () => {
       expect(mergedSwitch).not.toBeChecked();
     });
 
-    it("writes the one setting the three methods now share", async () => {
+    it("writes the one setting modular embedding and guest embeds share", async () => {
       await setup();
 
       const [mergedSwitch] = await screen.findAllByRole("switch");
@@ -169,6 +183,36 @@ describe("EmbeddingMethodsCard", () => {
       expect(
         await screen.findByText("Set via environment variable"),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("the React SDK switch", () => {
+    it("writes enable-embedding-sdk, not the shared setting", async () => {
+      await setup();
+
+      const [, sdkSwitch] = await screen.findAllByRole("switch");
+      await userEvent.click(sdkSwitch);
+
+      await waitFor(async () => {
+        expect(await findRequests("PUT")).toHaveLength(1);
+      });
+
+      const [{ body }] = await findRequests("PUT");
+      expect(body).toEqual({ "enable-embedding-sdk": true });
+    });
+
+    it("asks the admin to accept the terms before turning the SDK on", async () => {
+      await setup({ showEmbedTerms: true });
+
+      const [, sdkSwitch] = await screen.findAllByRole("switch");
+      await userEvent.click(sdkSwitch);
+
+      expect(
+        await screen.findByText(
+          "Each end user needs their own Metabase account",
+        ),
+      ).toBeInTheDocument();
+      expect(await findRequests("PUT")).toHaveLength(0);
     });
   });
 });

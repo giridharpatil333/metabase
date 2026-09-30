@@ -11,14 +11,20 @@ import { createMockSettings } from "metabase-types/api/mocks";
 
 import { EmbeddingLegaleseModal } from "./EmbeddingLegaleseModal";
 
-const setup = () => {
+const setup = ({
+  settingKey = "enable-embedding-modular",
+}: {
+  settingKey?: "enable-embedding-modular" | "enable-embedding-sdk";
+} = {}) => {
   const onClose = jest.fn();
 
   setupPropertiesEndpoints(createMockSettings());
   setupSettingsEndpoints([]);
   setupUpdateSettingsEndpoint();
 
-  renderWithProviders(<EmbeddingLegaleseModal opened onClose={onClose} />);
+  renderWithProviders(
+    <EmbeddingLegaleseModal opened onClose={onClose} settingKey={settingKey} />,
+  );
 
   return { onClose };
 };
@@ -42,6 +48,20 @@ describe("EmbeddingLegaleseModal", () => {
 
     await waitFor(() => {
       expect(onClose).toHaveBeenCalled();
+    });
+  });
+
+  it("should enable the React SDK instead when opened from its toggle", async () => {
+    setup({ settingKey: "enable-embedding-sdk" });
+
+    await userEvent.click(screen.getByRole("button", { name: "Agree" }), {
+      delay: null,
+    });
+
+    const [{ body }] = await findRequests("PUT");
+    expect(body).toEqual({
+      "enable-embedding-sdk": true,
+      "show-modular-embed-terms": false,
     });
   });
 

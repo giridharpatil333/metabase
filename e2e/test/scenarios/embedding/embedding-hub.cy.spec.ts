@@ -267,7 +267,7 @@ describe("scenarios > embedding > embedding hub > security", () => {
 
       cy.log("The first enable goes through the terms modal");
       cy.findByTestId("embedding-hub-main")
-        .findByText("Modular embedding and SDK for React")
+        .findByText("Modular embedding")
         .should("be.visible");
 
       // The switch renders before either request lands, reading undefined as

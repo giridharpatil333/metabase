@@ -114,9 +114,11 @@
       (is (= 0 exit))
       (is (str/includes? out "staged merged .clj-kondo/ratchets.edn")))
     (testing "the finite budget beats :unlimited, one-sided changes win, and a concurrent removal stays gone"
-      (is (= {:ignore-counts  {:a 4, :b 3}
-              :config-counts  {:c 1}
-              :comment-exempt #{}}
+      (is (= {:ignore-counts                {:a 4, :b 3}
+              :discouraged-var-counts       {}
+              :discouraged-namespace-counts {}
+              :config-counts                {:c 1}
+              :comment-exempt               #{}}
              (ratchets-policies dir))))
     (testing "only the ratchets file is staged; the other conflict is left alone"
       (is (= #{"M  .clj-kondo/ratchets.edn" "UU app.txt"}
@@ -134,9 +136,11 @@
   (with-conflict [dir {:ours   {ratchets-file "{:ignore-counts {:a 3, :shared :unlimited}}\n"}
                        :theirs {ratchets-file "{:ignore-counts {:b 4, :shared 2}}\n"}}]
     (is (= 0 (:exit (run dir script))))
-    (is (= {:ignore-counts  {:a 3, :b 4, :shared 2}
-            :config-counts  {}
-            :comment-exempt #{}}
+    (is (= {:ignore-counts                {:a 3, :b 4, :shared 2}
+            :discouraged-var-counts       {}
+            :discouraged-namespace-counts {}
+            :config-counts                {}
+            :comment-exempt               #{}}
            (ratchets-policies dir)))
     (is (= #{"M  .clj-kondo/ratchets.edn" "UU app.txt"}
            (status dir)))))

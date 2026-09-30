@@ -108,6 +108,12 @@ Explain budget increases in the PR. Do not record reductions in feature PRs: pos
 a `Tighten ratchets` PR for them. Use `./bin/mage kondo-ratchets-shrink --seed :linter` only when adding an
 inline-ignore budget. If either ratchet file conflicts, run `./bin/merge-kondo-ratchets`.
 
+`:discouraged-var` and `:discouraged-namespace` are budgeted per symbol, not per linter: a bare
+`--seed :discouraged-var`/`--seed :discouraged-namespace` seeds every symbol currently configured under
+that linter (unused ones at zero), while `--seed :discouraged-var/some.ns.some-fn` seeds just that one.
+`./bin/mage kondo-ratchets` resolves which symbol an ignore covers with a real, scoped `clojure -M:kondo`
+run over the files that carry one of these two ignores, so it is no longer purely Babashka.
+
 ## Tool Preferences
 
 If `clojure-mcp` tools are available, prefer them over shell-based alternatives for Clojure development.
